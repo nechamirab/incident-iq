@@ -8,11 +8,11 @@ The system is designed to always separate **facts** (directly supported by evide
 **assumptions** (plausible but unproven), **hypotheses** (explanations requiring testing), and
 **actions** (concrete next steps). It never presents a hypothesis as a confirmed root cause.
 
-> **Status:** Stage 2 — Shared Domain Models and Mock Data. Stage 1 established the
-> frontend/backend skeleton and a working health check. Stage 2 adds the full domain model layer
-> (Incident, Evidence, Hypothesis, Bias Findings, Recommended Actions, Analysis Runs, Postmortem)
-> with Zod validation, three richly detailed synthetic incident datasets, and an in-memory
-> repository. Incident intake, file upload, and AI analysis are introduced in later stages.
+> **Status:** Stage 3 — Incident Input and File Upload. Stage 1 established the frontend/backend
+> skeleton; Stage 2 added the full domain model layer and mock data. Stage 3 makes incident
+> creation real end-to-end: a validated New Incident form (React Hook Form + Zod), `.txt`/`.log`/
+> `.json`/`.csv` file upload with format-specific parsing, evidence extraction/normalization, and
+> a working `POST /api/incidents`. AI analysis is introduced in Stage 4.
 
 ## Architecture
 
@@ -53,13 +53,36 @@ depend only on the interface, so a real database can be swapped in without touch
 The frontend never talks to an AI provider directly and never holds an AI API key — all AI
 integration happens on the backend (added in Stage 4).
 
+### Incident intake and file parsing
+
+The New Incident page lets a user describe an incident and paste evidence into seven
+category-specific fields (application logs, error traces, monitoring alerts, deployment notes,
+user complaints, API errors, database errors) — each mapped to its evidence source type via
+a single shared lookup table (`shared/constants/evidenceFields.ts`) used by both the form and the
+backend, so the mapping can never drift. Each non-empty pasted line becomes its own evidence item;
+the description becomes a single evidence item.
+
+Uploaded files (`.txt`, `.log`, `.json`, `.csv`, up to 2 MB each, 10 files per incident) are kept
+in memory only (never written to disk, so a file name can never influence a server filesystem
+path) and dispatched by extension to a dedicated parser:
+
+- **`.txt` / `.log`** — one evidence item per non-empty line.
+- **`.json`** — one evidence item per array element (or a single item for a top-level object),
+  with a best-effort timestamp extracted from a recognizable field.
+- **`.csv`** — one evidence item per data row, using the header row as field names.
+
+Every parser only ever reads file content as text or parses it with `JSON.parse` / a hand-rolled
+CSV tokenizer — uploaded content is never evaluated or executed. All evidence extraction (both
+pasted text and uploaded files) is exercised end-to-end by `POST /api/incidents`, which creates
+the incident and its full evidence list in one request.
+
 ## Technology stack
 
 | Layer    | Technology                                                                 |
 | -------- | --------------------------------------------------------------------------- |
-| Frontend | React, Vite, TypeScript (strict), React Router, Material UI, TanStack Query |
-| Backend  | Node.js, Express, TypeScript (strict), CORS, dotenv, Zod                    |
-| Tooling  | ESLint (flat config), Prettier, Vitest, npm workspaces                      |
+| Frontend | React, Vite, TypeScript (strict), React Router, Material UI, TanStack Query, React Hook Form, Zod |
+| Backend  | Node.js, Express, TypeScript (strict), CORS, dotenv, Zod, Multer            |
+| Tooling  | ESLint (flat config), Prettier, Vitest, Supertest, npm workspaces           |
 
 ## Project structure
 
@@ -68,26 +91,35 @@ incident-iq/
   src/                     # Frontend application
     app/                   # App root, router, providers
     components/layout/     # Shared layout (header, shell)
+    components/incidents/  # NewIncidentForm, LoadSampleIncidentButton, IncidentCreatedPanel
+    components/evidence/   # FileUploadZone (drag-drop, preview, remove)
     pages/                 # Route-level page components
-    hooks/                 # React hooks (e.g. useHealthCheck)
+    hooks/                 # React hooks (useHealthCheck, useIncidents, useCreateIncident)
     services/              # Typed API clients
+    schemas/               # Frontend-only Zod schemas (New Incident form)
     constants/              # Routes, query keys
     theme/                 # MUI theme tokens
+    utils/                 # File validation/size formatting, sample-incident form mapping
   server/                  # Backend application
     src/
-      app.ts               # Express app factory
+      app.ts               # Express app factory (dependency-injectable repository)
       server.ts            # HTTP listener entry point
       config/              # Environment configuration
       controllers/         # Request handlers
       routes/               # Route definitions
-      middleware/           # Error handling, 404 handling
+      middleware/           # Error handling, 404 handling, Multer upload, Zod body validation
+      parsers/              # Text/JSON/CSV evidence parsers + extension dispatcher
+      services/             # evidenceService, incidentService
+      schemas/              # Server-only request schemas (incident intake)
       repositories/         # IncidentRepository interface + in-memory implementation
       data/incidents/       # Bundled synthetic sample incidents
-      utils/                # ApiError, id generation, shared backend utilities
-    tests/                 # Vitest unit tests (schemas, mock data, repository)
+      utils/                # ApiError, id generation, text normalization
+    tests/                 # Vitest + Supertest (schemas, parsers, services, API routes)
   shared/
     schemas/               # Zod schemas (source of truth for every domain model)
     types/                 # TypeScript types inferred from the Zod schemas
+    constants/              # File-upload limits, evidence-field-to-source-type mapping
+  tests/                   # Frontend pure-logic Vitest tests (schemas, utils)
   .env.example
   package.json             # Frontend package + npm workspaces root
 ```
@@ -167,22 +199,41 @@ npm run format        # Prettier --write
 ## Testing
 
 ```bash
-npm run test   # Vitest: schemas, sample data integrity, repository behavior (53 tests)
+npm run test          # frontend pure-logic tests, then backend tests
+npm run test:client   # frontend only (Vitest, node environment)
+npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-Backend unit tests live in `server/tests/` and cover: every Zod schema (accepting valid data,
-rejecting invalid enums/out-of-range confidence/missing fields), integrity of the three sample
-incident datasets (unique ids, evidence linkage, parseable timestamps), and full CRUD behavior of
-the in-memory `IncidentRepository`. Frontend and API-level tests are introduced in later stages.
+125 tests total:
 
-## Known limitations (Stage 2)
+- **Backend** (`server/tests/`, 100 tests) — every Zod schema, sample-data integrity, full
+  `IncidentRepository` CRUD, every parser (text/JSON/CSV, including malformed-input rejection),
+  `evidenceService`'s field-to-source-type mapping, the incident intake request schema, and full
+  API route tests via Supertest (`POST`/`GET /api/incidents`, `GET /api/incidents/:id`) covering
+  success paths, file uploads, invalid JSON, unsupported extensions, oversized files, and
+  validation errors — each test run gets its own isolated in-memory repository via dependency
+  injection (`createApp({ incidentRepository })`), never the shared process singleton.
+- **Frontend** (`tests/`, 25 tests) — the New Incident form's Zod schema, client-side file
+  validation, file-size formatting, and the sample-incident-to-form-values reconstruction logic.
+
+Full component-level React Testing Library tests are introduced in Stage 10.
+
+## Known limitations (Stage 3)
 
 - No AI integration yet — `AnalysisRun`, `Hypothesis`, `BiasFinding`, and `RecommendedAction` are
   fully modeled and tested but have no real instances until Stage 4's AI provider generates them.
-- Nothing is wired to HTTP yet: the repository and mock data exist and are tested directly, but no
-  `/api/incidents` routes exist until Stage 3.
-- The New Incident and Incident Workspace pages are still navigation/layout placeholders.
-- No frontend or API-level test suite yet (Stage 10).
+  The "Analyze incident" button is present but disabled, with a tooltip explaining why.
+- The Incident Workspace page is still a navigation/layout placeholder — "View in workspace" after
+  creating an incident links there, but the page itself doesn't render the incident yet (Stage 5+).
+- Redaction of sensitive values (emails, tokens, credentials) is not implemented yet — the New
+  Incident form shows a privacy warning, but no automatic redaction runs before storage (planned
+  ahead of real AI calls in Stage 4).
+- "Load sample incident" prefills the form's text fields from a bundled sample's evidence, but
+  cannot reconstruct its uploaded files (samples have no underlying file objects, only their
+  already-parsed evidence).
+- No full-page/component-level frontend test suite (React Testing Library) yet — the form's logic
+  is tested in isolation, but a real browser wasn't used to click through it (no browser tool is
+  available in this environment); only the API layer was verified against a real running server.
 
 ## Roadmap
 

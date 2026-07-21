@@ -33,10 +33,14 @@ export class ApiRequestError extends Error {
 export async function apiRequest<TData>(path: string, init?: RequestInit): Promise<TData> {
   let response: Response;
 
+  const isFormData = init?.body instanceof FormData;
+
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       headers: {
-        'Content-Type': 'application/json',
+        // FormData requests must not set Content-Type: the browser needs to
+        // add its own multipart boundary parameter.
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...init?.headers,
       },
       ...init,

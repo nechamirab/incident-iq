@@ -4,4 +4,6 @@
  */
 export const queryKeys = {
   health: ['health'] as const,
+  incidents: ['incidents'] as const,
+  incident: (incidentId: string) => ['incidents', incidentId] as const,
 };

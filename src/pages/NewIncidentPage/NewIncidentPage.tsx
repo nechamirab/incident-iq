@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { Alert, Stack, Typography } from '@mui/material';
+import { Stack, Typography } from '@mui/material';
+import { NewIncidentForm } from '../../components/incidents/NewIncidentForm';
 
 /**
- * Placeholder for the incident-creation form. The full form, file upload,
- * and validation logic are introduced in a later development stage.
+ * Incident-creation page: introduces the workflow, then renders the New
+ * Incident form.
  */
 export function NewIncidentPage(): ReactNode {
   return (
@@ -17,10 +18,7 @@ export function NewIncidentPage(): ReactNode {
         </Typography>
       </Stack>
 
-      <Alert severity="info" variant="outlined">
-        The incident intake form, file upload, and evidence preview are not implemented yet. This
-        page currently establishes navigation and layout only.
-      </Alert>
+      <NewIncidentForm />
     </Stack>
   );
 }

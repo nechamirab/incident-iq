@@ -10,7 +10,7 @@ export default tseslint.config(
     ignores: ['dist', 'server/dist', 'node_modules', 'server/node_modules'],
   },
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts'],
     extends: [
       js.configs.recommended,
       ...tseslint.configs.recommendedTypeChecked,
