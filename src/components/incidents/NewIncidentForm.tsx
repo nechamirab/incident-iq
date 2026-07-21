@@ -1,15 +1,18 @@
 import { useState, type ReactNode } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, Tooltip, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, Typography } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import type { Incident } from '../../../shared/types/incident';
 import { IncidentSeveritySchema } from '../../../shared/schemas/incident.schema';
 import { EVIDENCE_TEXT_FIELDS } from '../../../shared/constants/evidenceFields';
+import { buildIncidentWorkspacePath } from '../../constants/routes';
 import { NewIncidentFormSchema, type NewIncidentFormValues } from '../../schemas/newIncidentForm.schema';
 import { useCreateIncident } from '../../hooks/useCreateIncident';
+import { analyzeIncident } from '../../services/analysisService';
 import { buildFormValuesFromIncident } from '../../utils/incidentFormMapping';
 import { ControlledTextField } from '../common/ControlledTextField';
 import { FileUploadZone } from '../evidence/FileUploadZone';
@@ -50,8 +53,11 @@ const SEVERITY_LABELS: Record<string, string> = {
  * stays focused on layout and wiring.
  */
 export function NewIncidentForm(): ReactNode {
+  const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
   const [createdIncident, setCreatedIncident] = useState<Incident | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const createIncidentMutation = useCreateIncident();
 
   const { control, handleSubmit, reset } = useForm<NewIncidentFormValues>({
@@ -63,6 +69,7 @@ export function NewIncidentForm(): ReactNode {
     reset(DEFAULT_VALUES);
     setFiles([]);
     createIncidentMutation.reset();
+    setAnalyzeError(null);
   }
 
   function handleLoadSample(incident: Incident): void {
@@ -75,9 +82,32 @@ export function NewIncidentForm(): ReactNode {
     handleResetForm();
   }
 
-  async function onSubmit(values: NewIncidentFormValues): Promise<void> {
+  async function onSaveDraft(values: NewIncidentFormValues): Promise<void> {
     const incident = await createIncidentMutation.mutateAsync({ values, files });
     setCreatedIncident(incident);
+  }
+
+  /**
+   * Creates the incident, then immediately triggers AI analysis on it and
+   * navigates to its workspace. If analysis itself fails, the incident was
+   * still created successfully, so we navigate anyway -- the workspace's
+   * Overview tab shows a clear "no analysis yet" state with a retry action,
+   * rather than losing the user's just-submitted incident.
+   */
+  async function onSaveAndAnalyze(values: NewIncidentFormValues): Promise<void> {
+    const incident = await createIncidentMutation.mutateAsync({ values, files });
+
+    setIsAnalyzing(true);
+    setAnalyzeError(null);
+    try {
+      await analyzeIncident(incident.id);
+    } catch (error) {
+      setAnalyzeError(error instanceof Error ? error.message : 'Analysis failed.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+
+    void navigate(buildIncidentWorkspacePath(incident.id));
   }
 
   if (createdIncident) {
@@ -90,7 +120,7 @@ export function NewIncidentForm(): ReactNode {
     <Stack
       component="form"
       noValidate
-      onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      onSubmit={(event) => void handleSubmit(onSaveDraft)(event)}
       spacing={4}
     >
       <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
@@ -226,6 +256,13 @@ export function NewIncidentForm(): ReactNode {
         </Alert>
       )}
 
+      {analyzeError && (
+        <Alert severity="warning" variant="outlined">
+          The incident was created, but analysis could not be started: {analyzeError}. You can
+          retry analysis from the incident workspace.
+        </Alert>
+      )}
+
       <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
         <Button
           type="submit"
@@ -236,20 +273,22 @@ export function NewIncidentForm(): ReactNode {
           Save draft
         </Button>
 
-        <Tooltip title="AI-assisted analysis is introduced in a later development stage.">
-          <span>
-            <Button variant="outlined" startIcon={<InsightsOutlinedIcon />} disabled>
-              Analyze incident
-            </Button>
-          </span>
-        </Tooltip>
+        <Button
+          type="button"
+          variant="outlined"
+          startIcon={<InsightsOutlinedIcon />}
+          loading={createIncidentMutation.isPending || isAnalyzing}
+          onClick={() => void handleSubmit(onSaveAndAnalyze)()}
+        >
+          Save &amp; analyze incident
+        </Button>
 
         <Button
           variant="text"
           color="inherit"
           startIcon={<RestartAltIcon />}
           onClick={handleResetForm}
-          disabled={createIncidentMutation.isPending}
+          disabled={createIncidentMutation.isPending || isAnalyzing}
         >
           Reset form
         </Button>

@@ -149,6 +149,7 @@ describe('InMemoryIncidentRepository', () => {
       recommendedActions: [],
       openQuestions: [],
       unsupportedClaims: [],
+      uncertaintyStatement: 'This is a test fixture with known limitations.',
       validationWarnings: [],
       rawResponse: null,
     };
@@ -178,11 +179,112 @@ describe('InMemoryIncidentRepository', () => {
       recommendedActions: [],
       openQuestions: [],
       unsupportedClaims: [],
+      uncertaintyStatement: 'This is a test fixture with known limitations.',
       validationWarnings: [],
       rawResponse: null,
     };
 
     const updated = await repository.addAnalysisRun('does-not-exist', run);
     expect(updated).toBeNull();
+  });
+
+  describe('updateStatementReviewStatus', () => {
+    function buildRunWithStatements(): AnalysisRun {
+      return {
+        id: 'run-review-1',
+        incidentId: 'incident-review',
+        provider: 'mock',
+        model: 'mock-v1',
+        promptVersion: 'incident-analysis-v1',
+        createdAt: '2026-07-01T00:10:00Z',
+        inputHash: 'hash-review',
+        durationMs: 10,
+        status: 'completed',
+        summary: { text: 'Summary', affectedComponents: [], impact: 'Unknown' },
+        timeline: [],
+        facts: [
+          {
+            id: 'fact-1',
+            category: 'fact',
+            statement: 'checkout-api returned 500 errors.',
+            explanation: 'Observed directly.',
+            evidenceIds: ['ev-1'],
+            confidence: 80,
+            reviewStatus: 'unreviewed',
+          },
+        ],
+        assumptions: [
+          {
+            id: 'assumption-1',
+            category: 'assumption',
+            statement: 'Maybe related to the deploy.',
+            explanation: 'Speculative.',
+            evidenceIds: [],
+            confidence: 30,
+            reviewStatus: 'unreviewed',
+          },
+        ],
+        hypotheses: [],
+        reasoningRisks: [],
+        recommendedActions: [],
+        openQuestions: [],
+        unsupportedClaims: [],
+        uncertaintyStatement: 'This is a test fixture with known limitations.',
+        validationWarnings: [],
+        rawResponse: null,
+      };
+    }
+
+    it('updates a fact\'s review status', async () => {
+      const created = await repository.create(buildCreateInput());
+      await repository.addAnalysisRun(created.id, { ...buildRunWithStatements(), incidentId: created.id });
+
+      const updated = await repository.updateStatementReviewStatus(created.id, 'fact-1', 'supported');
+      expect(updated?.analysisRuns[0]?.facts[0]?.reviewStatus).toBe('supported');
+    });
+
+    it('updates an assumption\'s review status without touching facts', async () => {
+      const created = await repository.create(buildCreateInput());
+      await repository.addAnalysisRun(created.id, { ...buildRunWithStatements(), incidentId: created.id });
+
+      const updated = await repository.updateStatementReviewStatus(
+        created.id,
+        'assumption-1',
+        'rejected',
+      );
+      expect(updated?.analysisRuns[0]?.assumptions[0]?.reviewStatus).toBe('rejected');
+      expect(updated?.analysisRuns[0]?.facts[0]?.reviewStatus).toBe('unreviewed');
+    });
+
+    it('returns null for a missing incident', async () => {
+      const updated = await repository.updateStatementReviewStatus('does-not-exist', 'fact-1', 'supported');
+      expect(updated).toBeNull();
+    });
+
+    it('returns null for a missing statement id', async () => {
+      const created = await repository.create(buildCreateInput());
+      await repository.addAnalysisRun(created.id, { ...buildRunWithStatements(), incidentId: created.id });
+
+      const updated = await repository.updateStatementReviewStatus(
+        created.id,
+        'does-not-exist',
+        'supported',
+      );
+      expect(updated).toBeNull();
+    });
+
+    it('bumps updatedAt on success', async () => {
+      const created = await repository.create(buildCreateInput());
+      await repository.addAnalysisRun(created.id, { ...buildRunWithStatements(), incidentId: created.id });
+
+      vi.useFakeTimers();
+      try {
+        vi.advanceTimersByTime(1000);
+        const updated = await repository.updateStatementReviewStatus(created.id, 'fact-1', 'supported');
+        expect(updated?.updatedAt).not.toBe(created.updatedAt);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

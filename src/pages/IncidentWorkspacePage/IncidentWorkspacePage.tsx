@@ -1,31 +1,102 @@
-import type { ReactNode } from 'react';
-import { Alert, Stack, Typography } from '@mui/material';
+import { useEffect, type ReactNode } from 'react';
+import { Alert, Box, CircularProgress, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
+import { WORKSPACE_SECTIONS } from '../../constants/workspaceSections';
+import { EvidenceSection } from '../../components/workspace/EvidenceSection';
+import { FactsAssumptionsSection } from '../../components/workspace/FactsAssumptionsSection';
+import { OverviewSection } from '../../components/workspace/OverviewSection';
+import { PlaceholderSection } from '../../components/workspace/PlaceholderSection';
+import { WorkspaceHeader } from '../../components/workspace/WorkspaceHeader';
+import { useAnalyzeIncident } from '../../hooks/useAnalyzeIncident';
+import { useIncident } from '../../hooks/useIncident';
+import { useWorkspaceStore, type WorkspaceSection } from '../../store/workspaceStore';
 
 /**
- * Placeholder for the incident investigation workspace (overview, evidence,
- * timeline, hypotheses, reasoning risks, actions, AI review, postmortem).
- * Those sections are introduced in later development stages.
+ * The Incident Workspace: fetches the incident and renders a tabbed
+ * layout. Overview, Evidence, and Facts & Assumptions are fully
+ * implemented; the remaining sections show a placeholder naming the stage
+ * that introduces them, so the intended navigation is visible end to end.
  */
 export function IncidentWorkspacePage(): ReactNode {
   const { incidentId } = useParams<{ incidentId: string }>();
+  const incidentQuery = useIncident(incidentId);
+  const analyzeMutation = useAnalyzeIncident(incidentId ?? '');
+
+  const activeSection = useWorkspaceStore((state) => state.activeSection);
+  const setActiveSection = useWorkspaceStore((state) => state.setActiveSection);
+  const resetForIncident = useWorkspaceStore((state) => state.resetForIncident);
+
+  useEffect(() => {
+    resetForIncident();
+  }, [incidentId, resetForIncident]);
+
+  if (incidentQuery.isLoading) {
+    return (
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+        <CircularProgress size={18} aria-hidden="true" />
+        <Typography role="status" color="text.secondary">
+          Loading incident&hellip;
+        </Typography>
+      </Stack>
+    );
+  }
+
+  if (incidentQuery.isError) {
+    return (
+      <Alert severity="error" variant="outlined">
+        Could not load this incident: {incidentQuery.error.message}
+      </Alert>
+    );
+  }
+
+  const incident = incidentQuery.data;
+  if (!incident) {
+    return (
+      <Alert severity="warning" variant="outlined">
+        No incident was found with id "{incidentId}".
+      </Alert>
+    );
+  }
 
   return (
     <Stack spacing={3}>
-      <Stack spacing={1}>
-        <Typography variant="h4" component="h1">
-          Incident Workspace
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Incident ID: {incidentId}
-        </Typography>
-      </Stack>
+      <WorkspaceHeader
+        incident={incident}
+        onAnalyze={() => analyzeMutation.mutate()}
+        isAnalyzing={analyzeMutation.isPending}
+      />
 
-      <Alert severity="info" variant="outlined">
-        The investigation workspace (overview, evidence, timeline, hypotheses, reasoning risks,
-        recommended actions, AI review, and postmortem) is not implemented yet. This page
-        currently establishes navigation and layout only.
-      </Alert>
+      {analyzeMutation.isError && (
+        <Alert severity="error" variant="outlined">
+          Analysis failed: {analyzeMutation.error.message}
+        </Alert>
+      )}
+
+      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs
+          value={activeSection}
+          onChange={(_event, value: WorkspaceSection) => setActiveSection(value)}
+          variant="scrollable"
+          scrollButtons="auto"
+          aria-label="Incident workspace sections"
+        >
+          {WORKSPACE_SECTIONS.map((section) => (
+            <Tab key={section.id} value={section.id} label={section.label} id={`workspace-tab-${section.id}`} />
+          ))}
+        </Tabs>
+      </Box>
+
+      <Box role="tabpanel" aria-labelledby={`workspace-tab-${activeSection}`}>
+        {activeSection === 'overview' && <OverviewSection incident={incident} />}
+        {activeSection === 'evidence' && <EvidenceSection incident={incident} />}
+        {activeSection === 'facts-assumptions' && <FactsAssumptionsSection incident={incident} />}
+        {(() => {
+          const section = WORKSPACE_SECTIONS.find((candidate) => candidate.id === activeSection);
+          return section?.arrivingInStage ? (
+            <PlaceholderSection label={section.label} arrivingInStage={section.arrivingInStage} />
+          ) : null;
+        })()}
+      </Box>
     </Stack>
   );
 }

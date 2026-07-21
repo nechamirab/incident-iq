@@ -43,6 +43,7 @@ export const AnalysisRunSchema = z.object({
   recommendedActions: z.array(RecommendedActionSchema),
   openQuestions: z.array(z.string()),
   unsupportedClaims: z.array(z.string()),
+  uncertaintyStatement: z.string(),
   validationWarnings: z.array(z.string()),
   rawResponse: z.unknown(),
 });

@@ -5,6 +5,7 @@ import type {
   Incident,
   UpdateIncidentInput,
 } from '../../../shared/types/incident.js';
+import type { ReviewStatus } from '../../../shared/types/reasoning.js';
 import { createId } from '../utils/id.js';
 import type { IncidentRepository } from './IncidentRepository.js';
 
@@ -101,6 +102,47 @@ export class InMemoryIncidentRepository implements IncidentRepository {
     const updated: Incident = {
       ...existing,
       analysisRuns: [...existing.analysisRuns, run],
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.incidentsById.set(incidentId, updated);
+    return structuredClone(updated);
+  }
+
+  async updateStatementReviewStatus(
+    incidentId: string,
+    statementId: string,
+    reviewStatus: ReviewStatus,
+  ): Promise<Incident | null> {
+    const existing = this.incidentsById.get(incidentId);
+    if (!existing) {
+      return null;
+    }
+
+    let found = false;
+    const analysisRuns: AnalysisRun[] = existing.analysisRuns.map((run) => {
+      const updateStatement = (item: AnalysisRun['facts'][number]) => {
+        if (item.id !== statementId) {
+          return item;
+        }
+        found = true;
+        return { ...item, reviewStatus };
+      };
+
+      return {
+        ...run,
+        facts: run.facts.map(updateStatement),
+        assumptions: run.assumptions.map(updateStatement),
+      };
+    });
+
+    if (!found) {
+      return null;
+    }
+
+    const updated: Incident = {
+      ...existing,
+      analysisRuns,
       updatedAt: new Date().toISOString(),
     };
 

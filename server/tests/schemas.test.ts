@@ -221,6 +221,7 @@ describe('AnalysisRunSchema', () => {
     recommendedActions: [],
     openQuestions: ['Was the connection pool change reviewed before deployment?'],
     unsupportedClaims: [],
+    uncertaintyStatement: 'The contribution of elevated Stripe latency has not been ruled out.',
     validationWarnings: [],
     rawResponse: { note: 'mock provider does not produce a raw response' },
   };

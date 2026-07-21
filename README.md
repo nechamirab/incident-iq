@@ -8,14 +8,15 @@ The system is designed to always separate **facts** (directly supported by evide
 **assumptions** (plausible but unproven), **hypotheses** (explanations requiring testing), and
 **actions** (concrete next steps). It never presents a hypothesis as a confirmed root cause.
 
-> **Status:** Stage 4 — AI Architecture and Reasoning Pipeline. Stage 1 established the
-> frontend/backend skeleton; Stage 2 added the domain model layer and mock data; Stage 3 made
-> incident creation and file upload real end-to-end. Stage 4 adds a working `POST
-> /api/incidents/:incidentId/analyze`: a provider-agnostic `AIProvider` interface, a deterministic
-> offline `MockAIProvider`, a real `AnthropicAIProvider`, versioned prompts, strict Zod validation
-> of the AI's structured JSON output with one automatic repair retry, evidence-reference
-> cross-checking, and full `AnalysisRun` audit metadata. Rendering the results in the UI (Overview,
-> Hypotheses, Timeline, etc.) is introduced in Stages 5–6.
+> **Status:** Stage 5 — Incident Summary and Evidence Workspace. Stage 1 established the
+> frontend/backend skeleton; Stage 2 added the domain model and mock data; Stage 3 made incident
+> creation and file upload real; Stage 4 built the AI analysis pipeline. Stage 5 makes the Incident
+> Workspace real: a tabbed layout (Overview, Evidence, Facts & Assumptions implemented; Timeline,
+> Hypotheses, Reasoning Risks, Recommended Actions, AI Review, and Postmortem shown as named
+> placeholders for the stages that build them), an evidence browser with search/filter/copy and
+> "referenced by" cross-links back to analysis claims, and human review controls
+> (`PATCH /api/incidents/:incidentId/statements/:statementId/review`) for marking a fact or
+> assumption supported, partially supported, unsupported, or rejected.
 
 ## Architecture
 
@@ -91,6 +92,41 @@ While a request is in flight the incident's status is `analyzing`; it becomes
 `under-investigation` on success, or reverts to whatever it was before on any failure — an
 incident is never left stuck in a transient state.
 
+### Incident Workspace
+
+`/incidents/:incidentId` (`IncidentWorkspacePage`) is a tabbed layout listing all nine sections
+the finished app will have (`src/constants/workspaceSections.ts`); sections not yet built render a
+named placeholder ("Timeline is not implemented yet... Stage 6") rather than being hidden, so the
+intended navigation is visible end to end. Three sections are fully implemented:
+
+- **Overview** — the incident description, plus the *latest* analysis run's summary, impact,
+  affected components, uncertainty statement, validation warnings, and provenance
+  (provider/model/prompt version/timestamp/duration). Shows an explicit empty state — never a
+  blank section — when no analysis has run yet, with a "Run AI analysis" action in the header
+  (`useAnalyzeIncident`) that also works as "Re-run" once a run exists.
+- **Evidence** — every evidence item, searchable (source name, content, or id) and filterable by
+  source type, each showing original vs. normalized content, a copy-to-clipboard action, and —
+  computed from the latest run via `buildEvidenceReferenceIndex` — which facts, assumptions,
+  hypotheses, timeline events, reasoning risks, or recommended actions cite it (e.g. "Referenced by
+  2 facts, 1 hypothesis").
+- **Facts & Assumptions** — facts, assumptions, and unsupported claims are always rendered as
+  three visually distinct groups, never mixed. Each fact/assumption has a
+  `ReviewStatusControl` wired to `PATCH .../statements/:statementId/review`
+  (`InMemoryIncidentRepository.updateStatementReviewStatus` searches every analysis run on the
+  incident for the matching statement id) — a human reviewer can mark any one supported, partially
+  supported, unsupported, or rejected, independent of the AI's own confidence score.
+
+Search text, the active evidence-type filter, and the active tab are held in `useWorkspaceStore`
+(Zustand) — genuinely client-only UI state, reset whenever the user navigates to a different
+incident. Everything else (the incident itself, analysis runs) stays in TanStack Query's cache;
+nothing server-derived is duplicated into Zustand.
+
+The New Incident form's "Save & analyze incident" action (previously disabled, promising "a later
+development stage") now creates the incident, triggers analysis, and navigates to its workspace;
+if analysis itself fails the incident was still created successfully, so the user still lands on
+its workspace with a clear "no analysis yet" state and a retry button, rather than losing the
+submission.
+
 ### Mock data and persistence
 
 `server/src/data/incidents/` ships three realistic, deliberately ambiguous synthetic incidents
@@ -130,7 +166,7 @@ the incident and its full evidence list in one request.
 
 | Layer    | Technology                                                                 |
 | -------- | --------------------------------------------------------------------------- |
-| Frontend | React, Vite, TypeScript (strict), React Router, Material UI, TanStack Query, React Hook Form, Zod |
+| Frontend | React, Vite, TypeScript (strict), React Router, Material UI, TanStack Query, Zustand, React Hook Form, Zod |
 | Backend  | Node.js, Express, TypeScript (strict), CORS, dotenv, Zod, Multer, Anthropic SDK |
 | Tooling  | ESLint (flat config), Prettier, Vitest, Supertest, npm workspaces           |
 
@@ -142,14 +178,17 @@ incident-iq/
     app/                   # App root, router, providers
     components/layout/     # Shared layout (header, shell)
     components/incidents/  # NewIncidentForm, LoadSampleIncidentButton, IncidentCreatedPanel
-    components/evidence/   # FileUploadZone (drag-drop, preview, remove)
+    components/evidence/   # EvidenceCard, FileUploadZone (drag-drop, preview, remove)
+    components/workspace/  # WorkspaceHeader, Overview/Evidence/FactsAssumptions sections, ReviewStatusControl, PlaceholderSection
+    components/common/     # ControlledTextField, CopyButton
     pages/                 # Route-level page components
-    hooks/                 # React hooks (useHealthCheck, useIncidents, useCreateIncident)
-    services/              # Typed API clients
+    hooks/                 # React hooks (useIncident(s), useCreateIncident, useAnalyzeIncident, useReviewStatement, ...)
+    services/              # Typed API clients (incidentService, analysisService, ...)
+    store/                 # Zustand: workspace UI state only (active tab, evidence search/filter)
     schemas/               # Frontend-only Zod schemas (New Incident form)
-    constants/              # Routes, query keys
+    constants/              # Routes, query keys, workspace section config
     theme/                 # MUI theme tokens
-    utils/                 # File validation/size formatting, sample-incident form mapping
+    utils/                 # File validation/size formatting, evidence filtering/reference-indexing, status-display mapping
   server/                  # Backend application
     src/
       app.ts               # Express app factory (dependency-injectable repository + AI provider)
@@ -160,7 +199,7 @@ incident-iq/
       middleware/           # Error handling, 404 handling, Multer upload, Zod body validation
       parsers/              # Text/JSON/CSV evidence parsers + extension dispatcher
       services/             # evidenceService, incidentService, analysisService
-      schemas/              # Server-only request schemas (incident intake)
+      schemas/              # Server-only request schemas (incident intake, statement review)
       repositories/         # IncidentRepository interface + in-memory implementation
       data/incidents/       # Bundled synthetic sample incidents
       ai/
@@ -175,7 +214,7 @@ incident-iq/
     schemas/               # Zod schemas (source of truth for every domain model)
     types/                 # TypeScript types inferred from the Zod schemas
     constants/              # File-upload limits, evidence-field-to-source-type mapping
-  tests/                   # Frontend pure-logic Vitest tests (schemas, utils)
+  tests/                   # Frontend pure-logic Vitest tests (schemas, utils, store)
   .env.example
   package.json             # Frontend package + npm workspaces root
 ```
@@ -237,14 +276,11 @@ npm run dev:server   # Express API only (tsx watch mode)
 The Dashboard page calls `/api/health` on load and displays the connection status, so a
 successful load confirms the full stack is wired correctly.
 
-Since there's no UI for it yet (Stages 5–6), try the AI pipeline directly:
-
-```bash
-curl -s -X POST http://localhost:4001/api/incidents/sample-ecommerce-checkout/analyze | jq
-```
-
-With the default `AI_PROVIDER=mock`, this returns immediately with a full, schema-valid
-`AnalysisRun` — no API key required.
+To see the full loop: open the Dashboard, click "Start a new incident", click "Load sample
+incident" to prefill a realistic example, then "Save & analyze incident" — you'll land on that
+incident's workspace with a real (mock, by default) analysis already run. From there, Overview
+shows the summary/impact/uncertainty statement, Evidence is searchable/filterable, and Facts &
+Assumptions lets you mark any statement's review status.
 
 ## Building
 
@@ -270,52 +306,49 @@ npm run test:client   # frontend only (Vitest, node environment)
 npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-192 tests total:
+239 tests total:
 
-- **Backend** (`server/tests/`, 167 tests) — every Zod schema, sample-data integrity, full
-  `IncidentRepository` CRUD, every parser, `evidenceService`'s field-to-source-type mapping, the
-  incident intake request schema, and full API route tests via Supertest — each test run gets its
-  own isolated in-memory repository via dependency injection (`createApp({ incidentRepository,
-  aiProvider })`), never the shared process singletons. The AI pipeline specifically is covered by:
-  - `MockAIProvider` producing schema-valid, evidence-grounded output for all three sample
-    incidents *and* a minimal incident with only a description (the ≥3-hypotheses padding path),
-    with every cited evidence id verified to be real.
-  - `validateAIResponse` handling well-formed JSON, a wrapped markdown code fence, stray
-    commentary around the JSON, and both malformed-JSON and schema-mismatch failures.
-  - `findUnknownEvidenceReferences` / `detectUnsupportedFacts` catching hallucinated evidence ids
-    in every response section.
-  - `mapAiResponseToAnalysisRun` resolving hypothesis `tempId`s to real ids (including a dropped,
-    warned-about unresolvable reference) and force-setting every system-managed field.
-  - `analysisService`, via a scripted `FakeAIProvider`, exercising the full retry flow: first-try
-    success, invalid-then-repaired success, invalid-twice failure (with incident status correctly
-    reverted), a thrown provider error, and a missing-incident 404.
-  - `AnthropicAIProvider`'s missing-API-key path (a controlled 503, no network call attempted).
-  - Live route tests (`POST /api/incidents/:id/analyze`) covering success, 404, a
-    fails-after-retry 502, and — with a real `AnthropicAIProvider` constructed without a key,
-    injected into a real Express app — the full-stack missing-key error path.
-- **Frontend** (`tests/`, 25 tests) — the New Incident form's Zod schema, client-side file
-  validation, file-size formatting, and the sample-incident-to-form-values reconstruction logic.
+- **Backend** (`server/tests/`, 184 tests) — every Zod schema, sample-data integrity, full
+  `IncidentRepository` CRUD (including `updateStatementReviewStatus`: updates a fact, updates an
+  assumption without touching facts, 404s on a missing incident/statement, bumps `updatedAt`),
+  every parser, the full AI pipeline (mock provider determinism and evidence-grounding, response
+  validation, evidence-reference/unsupported-claim detection, the scripted-provider retry flow,
+  the Anthropic missing-key path), and full API route tests via Supertest — each test run gets its
+  own isolated in-memory repository and AI provider via dependency injection
+  (`createApp({ incidentRepository, aiProvider })`), never the shared process singletons. New this
+  stage: `PATCH /api/incidents/:id/statements/:id/review` tested end-to-end against a *real*
+  analysis run (analyze with `MockAIProvider`, then mark a real fact/assumption reviewed), plus
+  404s for a missing incident or statement and 400 for an invalid review status.
+- **Frontend** (`tests/`, 55 tests) — the New Incident form's Zod schema, client-side file
+  validation, file-size formatting, sample-incident-to-form-values reconstruction,
+  `getLatestAnalysisRun`, `filterEvidence` (search × source-type, combined as AND),
+  `buildEvidenceReferenceIndex`/`summarizeEvidenceReferences` (a fact and a hypothesis's
+  supporting/contradicting evidence indexed correctly, references accumulate per evidence id),
+  `statusDisplay`'s severity/status/review-status → label+color mapping (asserting the "green only
+  for human-reviewed supported items" rule specifically), and `useWorkspaceStore`'s state
+  transitions and per-incident reset.
 
-Full component-level React Testing Library tests are introduced in Stage 10. `AnthropicAIProvider`
-is not exercised against the live Anthropic API in automated tests (no network calls in CI, and no
-API key is available in this environment) — verified instead via a live smoke test of the mock
-pipeline against the running server, plus the missing-key path above.
+Full component-level React Testing Library tests are introduced in Stage 10 — the workspace UI
+(tabs, evidence cards, review controls) is exercised via its underlying pure logic and via live API
+smoke tests against a running server, not by rendering React components in a test runner.
+`AnthropicAIProvider` is still not exercised against the live Anthropic API (no network calls in
+tests, no API key available in this environment).
 
-## Known limitations (Stage 4)
+## Known limitations (Stage 5)
 
-- No UI renders analysis results yet — the Overview/Hypotheses/Timeline/Reasoning-Risks screens
-  are Stages 5–6. The "Analyze incident" button in the New Incident form is still disabled (it
-  operates on an incident that doesn't exist until after submission); triggering analysis today
-  means calling `POST /api/incidents/:id/analyze` directly.
-- The skeptic/critical review pass, bias-review prompt, and postmortem generation are separate
-  features from later stages (8–9) and are not implemented — Stage 4's `reasoningRisks` come from
-  the same single analysis call, not a dedicated adversarial review.
-- Redaction of sensitive values (emails, tokens, credentials) before sending evidence to a real AI
-  provider is not implemented yet — evidence is sent to Anthropic as-is when `AI_PROVIDER=anthropic`.
-  The New Incident form's privacy warning still applies.
-- `AnthropicAIProvider` has not been exercised against the live API (see Testing above) — its
-  request/response handling is implemented per the SDK's documented types but unverified against
-  a real key.
+- Six of the nine workspace tabs (Timeline, Hypotheses, Reasoning Risks, Recommended Actions, AI
+  Review, Postmortem) are placeholders naming the stage that builds them (6–9) — the data already
+  exists on each `AnalysisRun` (Stage 4), it just isn't rendered yet.
+- The skeptic/critical review pass and postmortem generation are separate features from later
+  stages (8–9) and are not implemented.
+- Redaction of sensitive values before sending evidence to a real AI provider is still not
+  implemented (unchanged from Stage 4) — evidence is sent to Anthropic as-is when
+  `AI_PROVIDER=anthropic`.
+- No full-page/component-level frontend test suite (React Testing Library) yet, and no browser
+  tool is available in this environment to click through the new workspace UI — verified instead
+  via a live smoke test of the real running server (analyze a sample incident, confirm
+  `uncertaintyStatement` and facts persist correctly, mark a fact "supported" via the review
+  endpoint, confirm it sticks).
 
 ## Roadmap
 

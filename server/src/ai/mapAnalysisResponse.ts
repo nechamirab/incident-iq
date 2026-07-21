@@ -147,6 +147,7 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
     recommendedActions,
     openQuestions: response.openQuestions,
     unsupportedClaims,
+    uncertaintyStatement: response.uncertaintyStatement,
     validationWarnings,
     rawResponse,
   };
