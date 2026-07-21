@@ -1,18 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  MenuItem,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, Tooltip, Typography } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
@@ -22,6 +11,7 @@ import { EVIDENCE_TEXT_FIELDS } from '../../../shared/constants/evidenceFields';
 import { NewIncidentFormSchema, type NewIncidentFormValues } from '../../schemas/newIncidentForm.schema';
 import { useCreateIncident } from '../../hooks/useCreateIncident';
 import { buildFormValuesFromIncident } from '../../utils/incidentFormMapping';
+import { ControlledTextField } from '../common/ControlledTextField';
 import { FileUploadZone } from '../evidence/FileUploadZone';
 import { IncidentCreatedPanel } from './IncidentCreatedPanel';
 import { LoadSampleIncidentButton } from './LoadSampleIncidentButton';
@@ -52,21 +42,19 @@ const SEVERITY_LABELS: Record<string, string> = {
 
 /**
  * The New Incident form: incident metadata, free-form evidence fields,
- * and file upload, validated with React Hook Form + Zod. Business logic
- * (submission, sample prefill) is delegated to hooks and utilities so this
- * component stays focused on layout and wiring.
+ * and file upload, validated with React Hook Form + Zod. Every field is
+ * bound via {@link ControlledTextField} rather than `register()`, so
+ * programmatic fills (Load sample incident, Reset form) render correctly
+ * instead of leaving MUI's labels un-shrunk. Business logic (submission,
+ * sample prefill) is delegated to hooks and utilities so this component
+ * stays focused on layout and wiring.
  */
 export function NewIncidentForm(): ReactNode {
   const [files, setFiles] = useState<File[]>([]);
   const [createdIncident, setCreatedIncident] = useState<Incident | null>(null);
   const createIncidentMutation = useCreateIncident();
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<NewIncidentFormValues>({
+  const { control, handleSubmit, reset } = useForm<NewIncidentFormValues>({
     resolver: zodResolver(NewIncidentFormSchema),
     defaultValues: DEFAULT_VALUES,
   });
@@ -123,75 +111,69 @@ export function NewIncidentForm(): ReactNode {
               Incident details
             </Typography>
 
-            <TextField
+            <ControlledTextField
+              name="title"
+              control={control}
               label="Title"
               required
               fullWidth
-              error={!!errors.title}
-              helperText={errors.title?.message}
-              {...register('title')}
             />
 
-            <TextField
+            <ControlledTextField
+              name="description"
+              control={control}
               label="Description"
               required
               fullWidth
               multiline
               minRows={3}
-              error={!!errors.description}
-              helperText={errors.description?.message}
-              {...register('description')}
             />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
+              <ControlledTextField
+                name="severity"
+                control={control}
                 select
                 label="Severity"
                 required
                 fullWidth
-                defaultValue={DEFAULT_VALUES.severity}
-                error={!!errors.severity}
-                helperText={errors.severity?.message}
-                {...register('severity')}
               >
                 {IncidentSeveritySchema.options.map((severity) => (
                   <MenuItem key={severity} value={severity}>
                     {SEVERITY_LABELS[severity]}
                   </MenuItem>
                 ))}
-              </TextField>
+              </ControlledTextField>
 
-              <TextField
+              <ControlledTextField
+                name="affectedService"
+                control={control}
                 label="Affected service"
                 required
                 fullWidth
                 placeholder="e.g. checkout-api"
-                error={!!errors.affectedService}
-                helperText={errors.affectedService?.message}
-                {...register('affectedService')}
               />
             </Stack>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
+              <ControlledTextField
+                name="startedAt"
+                control={control}
                 label="Incident start time"
                 type="datetime-local"
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
-                error={!!errors.startedAt}
-                helperText={errors.startedAt?.message ?? 'Optional, if known.'}
-                {...register('startedAt')}
+                helperText="Optional, if known."
               />
 
-              <TextField
+              <ControlledTextField
+                name="detectedAt"
+                control={control}
                 label="Detection time"
                 type="datetime-local"
                 required
                 fullWidth
                 slotProps={{ inputLabel: { shrink: true } }}
-                error={!!errors.detectedAt}
-                helperText={errors.detectedAt?.message}
-                {...register('detectedAt')}
               />
             </Stack>
           </Stack>
@@ -212,14 +194,15 @@ export function NewIncidentForm(): ReactNode {
             </Box>
 
             {EVIDENCE_TEXT_FIELDS.map((config) => (
-              <TextField
+              <ControlledTextField
                 key={config.field}
+                name={config.field}
+                control={control}
                 label={config.label}
                 fullWidth
                 multiline
                 minRows={2}
                 helperText={config.helperText}
-                {...register(config.field)}
               />
             ))}
           </Stack>
