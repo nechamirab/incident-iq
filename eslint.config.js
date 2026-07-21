@@ -59,6 +59,17 @@ export default tseslint.config(
     },
   },
   {
+    // Implements the async AIProvider contract with a synchronous,
+    // deterministic generator -- there is nothing to await.
+    files: [
+      'server/src/ai/providers/MockAIProvider.ts',
+      'server/tests/helpers/FakeAIProvider.ts',
+    ],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
+  {
     files: ['shared/**/*.ts'],
     extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
     languageOptions: {

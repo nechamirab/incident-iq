@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { MAX_FILES_PER_INCIDENT } from '../../../shared/constants/fileUpload.js';
+import type { AIProvider } from '../ai/providers/AIProvider.js';
+import { analyzeIncidentHandler } from '../controllers/analysisController.js';
 import { createIncident, getIncidentById, listIncidents } from '../controllers/incidentController.js';
 import { incidentEvidenceUpload } from '../middleware/upload.js';
 import { validateBody } from '../middleware/validateRequest.js';
@@ -7,11 +9,11 @@ import type { IncidentRepository } from '../repositories/IncidentRepository.js';
 import { IncidentIntakeRequestSchema } from '../schemas/incidentIntake.schema.js';
 
 /**
- * Builds the `/api/incidents` router against a specific repository
- * instance, so tests can inject an isolated, freshly-seeded repository
- * instead of sharing the process-wide singleton.
+ * Builds the `/api/incidents` router against a specific repository and AI
+ * provider, so tests can inject isolated/fake instances instead of sharing
+ * the process-wide singletons.
  */
-export function createIncidentRouter(repository: IncidentRepository): Router {
+export function createIncidentRouter(repository: IncidentRepository, aiProvider: AIProvider): Router {
   const router = Router();
 
   router.get('/', listIncidents(repository));
@@ -22,6 +24,7 @@ export function createIncidentRouter(repository: IncidentRepository): Router {
     validateBody(IncidentIntakeRequestSchema),
     createIncident(repository),
   );
+  router.post('/:incidentId/analyze', analyzeIncidentHandler(repository, aiProvider));
 
   return router;
 }
