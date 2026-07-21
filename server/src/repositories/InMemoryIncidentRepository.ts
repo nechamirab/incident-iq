@@ -1,0 +1,110 @@
+import type { AnalysisRun } from '../../../shared/types/analysisRun.js';
+import type { EvidenceItem } from '../../../shared/types/evidence.js';
+import type {
+  CreateIncidentInput,
+  Incident,
+  UpdateIncidentInput,
+} from '../../../shared/types/incident.js';
+import { createId } from '../utils/id.js';
+import type { IncidentRepository } from './IncidentRepository.js';
+
+/**
+ * In-memory {@link IncidentRepository} implementation, seeded from a fixed
+ * list of incidents at construction time. Suitable for local development,
+ * demos, and tests; state is lost on process restart. Every read and write
+ * deep-clones its payload so callers can never mutate internal state by
+ * holding a reference to a returned object.
+ */
+export class InMemoryIncidentRepository implements IncidentRepository {
+  private readonly incidentsById = new Map<string, Incident>();
+
+  constructor(seedIncidents: Incident[] = []) {
+    for (const incident of seedIncidents) {
+      this.incidentsById.set(incident.id, structuredClone(incident));
+    }
+  }
+
+  async findAll(): Promise<Incident[]> {
+    return Array.from(this.incidentsById.values()).map((incident) => structuredClone(incident));
+  }
+
+  async findById(id: string): Promise<Incident | null> {
+    const incident = this.incidentsById.get(id);
+    return incident ? structuredClone(incident) : null;
+  }
+
+  async create(input: CreateIncidentInput): Promise<Incident> {
+    const now = new Date().toISOString();
+    const incident: Incident = {
+      id: createId('incident'),
+      title: input.title,
+      description: input.description,
+      scenarioType: input.scenarioType ?? 'custom',
+      status: 'draft',
+      severity: input.severity,
+      affectedService: input.affectedService,
+      startedAt: input.startedAt ?? null,
+      detectedAt: input.detectedAt,
+      resolvedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      evidence: [],
+      analysisRuns: [],
+    };
+
+    this.incidentsById.set(incident.id, incident);
+    return structuredClone(incident);
+  }
+
+  async update(id: string, patch: UpdateIncidentInput): Promise<Incident | null> {
+    const existing = this.incidentsById.get(id);
+    if (!existing) {
+      return null;
+    }
+
+    const updated: Incident = {
+      ...existing,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.incidentsById.set(id, updated);
+    return structuredClone(updated);
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return this.incidentsById.delete(id);
+  }
+
+  async addEvidence(incidentId: string, evidence: EvidenceItem[]): Promise<Incident | null> {
+    const existing = this.incidentsById.get(incidentId);
+    if (!existing) {
+      return null;
+    }
+
+    const updated: Incident = {
+      ...existing,
+      evidence: [...existing.evidence, ...evidence],
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.incidentsById.set(incidentId, updated);
+    return structuredClone(updated);
+  }
+
+  async addAnalysisRun(incidentId: string, run: AnalysisRun): Promise<Incident | null> {
+    const existing = this.incidentsById.get(incidentId);
+    if (!existing) {
+      return null;
+    }
+
+    const updated: Incident = {
+      ...existing,
+      analysisRuns: [...existing.analysisRuns, run],
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.incidentsById.set(incidentId, updated);
+    return structuredClone(updated);
+  }
+}

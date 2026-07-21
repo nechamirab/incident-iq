@@ -26,22 +26,36 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
   {
-    files: ['server/src/**/*.ts'],
+    files: ['server/src/**/*.ts', 'server/tests/**/*.ts', 'server/vitest.config.ts'],
     extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,
       parserOptions: {
-        projectService: true,
+        project: ['./server/tsconfig.test.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
+  },
+  {
+    // Implements an async Promise-returning interface with a synchronous
+    // in-memory store; a future real-database implementation will await.
+    files: ['server/src/repositories/InMemoryIncidentRepository.ts'],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
     },
   },
   {
@@ -55,7 +69,10 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
   {
