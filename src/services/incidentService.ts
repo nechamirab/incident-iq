@@ -18,6 +18,17 @@ export async function fetchIncidentById(incidentId: string): Promise<Incident> {
 }
 
 /**
+ * Fetches only the bundled preset sample incidents, never a user-created
+ * one -- used by "Load sample incident". Backed by a dedicated endpoint
+ * rather than filtering the full incident list by `scenarioType`, since a
+ * user-created incident can end up with a non-`custom` scenarioType too
+ * (e.g. after loading a sample into the form and submitting it).
+ */
+export async function fetchSampleIncidents(): Promise<Incident[]> {
+  return apiRequest<Incident[]>('/api/incidents/samples');
+}
+
+/**
  * Converts a native `datetime-local` value (`YYYY-MM-DDTHH:mm`, no
  * timezone) into a full ISO-8601 UTC timestamp the backend accepts.
  */

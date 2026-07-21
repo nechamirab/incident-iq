@@ -25,6 +25,50 @@ describe('GET /api/incidents', () => {
   });
 });
 
+describe('GET /api/incidents/samples', () => {
+  it('returns exactly the bundled preset sample incidents', async () => {
+    const response = await request(buildApp()).get('/api/incidents/samples');
+    expect(response.status).toBe(200);
+    const data = body<Incident[]>(response).data;
+    expect(data).toHaveLength(sampleIncidents.length);
+    expect(new Set(data?.map((incident) => incident.id))).toEqual(
+      new Set(sampleIncidents.map((incident) => incident.id)),
+    );
+  });
+
+  it('is not swallowed by the "/:incidentId" route', async () => {
+    // A regression guard for route registration order: if "/:incidentId"
+    // were registered first, this request would 404 with
+    // INCIDENT_NOT_FOUND (treating "samples" as an id) instead of 200.
+    const response = await request(buildApp()).get('/api/incidents/samples');
+    expect(response.status).not.toBe(404);
+  });
+
+  it('still returns exactly the presets even when a user-created incident has a non-custom scenarioType', async () => {
+    // Reproduces the reported bug directly at the API level: a
+    // user-created incident carrying a non-"custom" scenarioType (as could
+    // previously happen via "Load sample incident" -> submit) must not
+    // appear in this endpoint's response, since it is keyed by fixed
+    // sample ids, never by scenarioType.
+    const app = buildApp();
+    await request(app)
+      .post('/api/incidents')
+      .field('title', 'A user incident that looks like a sample')
+      .field('description', 'desc')
+      .field('severity', 'high')
+      .field('affectedService', 'checkout-api')
+      .field('detectedAt', '2026-07-01T00:00:00Z')
+      .field('scenarioType', 'ecommerce-checkout');
+
+    const response = await request(app).get('/api/incidents/samples');
+    const data = body<Incident[]>(response).data;
+    expect(data).toHaveLength(sampleIncidents.length);
+    expect(data?.some((incident) => incident.title === 'A user incident that looks like a sample')).toBe(
+      false,
+    );
+  });
+});
+
 describe('GET /api/incidents/:incidentId', () => {
   it('returns a single incident by id', async () => {
     const response = await request(buildApp()).get(`/api/incidents/${sampleIncidents[0].id}`);

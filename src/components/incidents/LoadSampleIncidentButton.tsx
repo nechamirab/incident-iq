@@ -2,7 +2,7 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Button, Menu, MenuItem, Typography } from '@mui/material';
 import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined';
 import type { Incident } from '../../../shared/types/incident';
-import { useIncidents } from '../../hooks/useIncidents';
+import { useSampleIncidents } from '../../hooks/useSampleIncidents';
 
 interface LoadSampleIncidentButtonProps {
   onSelect: (incident: Incident) => void;
@@ -10,15 +10,15 @@ interface LoadSampleIncidentButtonProps {
 
 /**
  * Lets the user prefill the New Incident form from one of the bundled
- * sample incidents, fetched from the backend (never hardcoded in the
- * component) so the samples stay a single source of truth.
+ * sample incidents, fetched from a dedicated backend endpoint (never
+ * hardcoded in the component, and never inferred from `scenarioType` --
+ * see `useSampleIncidents`) so the samples stay a single source of truth
+ * and can never be confused with a user-created incident.
  */
 export function LoadSampleIncidentButton({ onSelect }: LoadSampleIncidentButtonProps): ReactNode {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-  const incidentsQuery = useIncidents();
-  const samples = (incidentsQuery.data ?? []).filter(
-    (incident) => incident.scenarioType !== 'custom',
-  );
+  const incidentsQuery = useSampleIncidents();
+  const samples = incidentsQuery.data ?? [];
 
   function handleOpen(event: MouseEvent<HTMLButtonElement>): void {
     setAnchorEl(event.currentTarget);

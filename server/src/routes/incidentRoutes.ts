@@ -2,7 +2,12 @@ import { Router } from 'express';
 import { MAX_FILES_PER_INCIDENT } from '../../../shared/constants/fileUpload.js';
 import type { AIProvider } from '../ai/providers/AIProvider.js';
 import { analyzeIncidentHandler } from '../controllers/analysisController.js';
-import { createIncident, getIncidentById, listIncidents } from '../controllers/incidentController.js';
+import {
+  createIncident,
+  getIncidentById,
+  listIncidents,
+  listSampleIncidents,
+} from '../controllers/incidentController.js';
 import { reviewStatement } from '../controllers/statementController.js';
 import { incidentEvidenceUpload } from '../middleware/upload.js';
 import { validateBody } from '../middleware/validateRequest.js';
@@ -19,6 +24,9 @@ export function createIncidentRouter(repository: IncidentRepository, aiProvider:
   const router = Router();
 
   router.get('/', listIncidents(repository));
+  // Must come before "/:incidentId" -- otherwise Express would match
+  // "/samples" as an incidentId param and this route would never be reached.
+  router.get('/samples', listSampleIncidents(repository));
   router.get('/:incidentId', getIncidentById(repository));
   router.post(
     '/',

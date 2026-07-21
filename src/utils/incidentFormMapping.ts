@@ -31,6 +31,13 @@ export function toDatetimeLocalValue(iso: string): string {
  * would always produce an empty Timeline, since none of its evidence
  * would carry a timestamp anymore.
  *
+ * `scenarioType` is deliberately *not* copied from the source incident:
+ * once submitted, the result is a new, independent, user-authored
+ * incident, not another instance of the original scenario -- it always
+ * starts as `custom`, matching every other incident created through this
+ * form. (Copying it through used to make "Load sample incident" -> submit
+ * incorrectly reappear in the sample-incident menu.)
+ *
  * @param incident The incident to load into the form.
  * @returns Form values ready to pass to `reset()`.
  */
@@ -54,7 +61,7 @@ export function buildFormValuesFromIncident(incident: Incident): NewIncidentForm
     affectedService: incident.affectedService,
     startedAt: incident.startedAt ? toDatetimeLocalValue(incident.startedAt) : '',
     detectedAt: toDatetimeLocalValue(incident.detectedAt),
-    scenarioType: incident.scenarioType,
+    scenarioType: 'custom',
     applicationLogs: (linesByField.applicationLogs ?? []).join('\n'),
     errorTraces: (linesByField.errorTraces ?? []).join('\n'),
     monitoringAlerts: (linesByField.monitoringAlerts ?? []).join('\n'),

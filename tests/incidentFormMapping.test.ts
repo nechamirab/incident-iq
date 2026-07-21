@@ -39,7 +39,17 @@ describe('buildFormValuesFromIncident', () => {
     expect(values.description).toBe('Customers cannot complete checkout.');
     expect(values.severity).toBe('critical');
     expect(values.affectedService).toBe('checkout-api');
-    expect(values.scenarioType).toBe('ecommerce-checkout');
+  });
+
+  it('always resets scenarioType to "custom", regardless of the source incident', () => {
+    // A resubmitted incident is a new, independent, user-authored incident,
+    // not another instance of the original scenario -- and must never be
+    // mistaken for a bundled sample by "Load sample incident" again.
+    const values = buildFormValuesFromIncident(buildIncident({ scenarioType: 'ecommerce-checkout' }));
+    expect(values.scenarioType).toBe('custom');
+
+    const customValues = buildFormValuesFromIncident(buildIncident({ scenarioType: 'custom' }));
+    expect(customValues.scenarioType).toBe('custom');
   });
 
   it('leaves startedAt blank when the incident has none', () => {
