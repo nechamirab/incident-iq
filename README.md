@@ -80,15 +80,19 @@ cp .env.example .env
 
 | Variable             | Used by  | Description                                                      |
 | --------------------- | -------- | ------------------------------------------------------------------ |
-| `PORT`                | backend  | Port the Express API listens on (default `4000`).                  |
+| `PORT`                | backend  | Port the Express API listens on (default `4001`).                  |
 | `NODE_ENV`             | backend  | `development`, `production`, or `test`.                            |
 | `CORS_ORIGIN`          | backend  | Origin allowed to call the API (default the Vite dev server).      |
 | `AI_PROVIDER`          | backend  | `mock` or `anthropic`. Introduced in Stage 4; leave as `mock`.      |
 | `ANTHROPIC_API_KEY`    | backend  | Only required when `AI_PROVIDER=anthropic`. Never committed.       |
-| `VITE_API_BASE_URL`    | frontend | Base URL the frontend uses to reach the backend (default `http://localhost:4000`). |
+| `VITE_API_BASE_URL`    | frontend | Base URL the frontend uses to reach the backend (default `http://localhost:4001`). |
 
 The backend loads `.env` from the repository root. The Anthropic API key is read only on the
 backend and is never bundled into frontend code.
+
+> If the backend fails to start with an "address already in use" error, another process on your
+> machine already holds that port. Change `PORT` (and update `VITE_API_BASE_URL` to match) in
+> `.env` and restart.
 
 ## Running the project
 
@@ -99,7 +103,7 @@ npm run dev
 ```
 
 - Frontend: http://localhost:5173
-- Backend: http://localhost:4000/api/health
+- Backend: http://localhost:4001/api/health
 
 Or run them separately:
 

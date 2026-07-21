@@ -4,7 +4,7 @@ import type { ApiResponse } from '../../shared/types/apiResponse';
  * Base URL of the IncidentIQ backend API.
  * Configured via `VITE_API_BASE_URL`; defaults to the local dev server.
  */
-const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4001';
 
 /**
  * Error thrown when the API responds with `success: false`, or when the

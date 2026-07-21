@@ -3,7 +3,7 @@ import { config as loadDotenv } from 'dotenv';
 // The server workspace is always run with its own directory as the working
 // directory (`npm run dev --workspace=server`, or `cd server && npm start`),
 // so the single project-wide `.env` file lives one level up from there.
-loadDotenv({ path: '../.env' });
+loadDotenv({ path: '../.env', quiet: true });
 
 /**
  * Backend runtime configuration, resolved once at startup from environment
@@ -24,7 +24,7 @@ function resolveNodeEnv(value: string | undefined): AppConfig['nodeEnv'] {
 }
 
 export const config: AppConfig = {
-  port: Number(process.env.PORT ?? 4000),
+  port: Number(process.env.PORT ?? 4001),
   nodeEnv: resolveNodeEnv(process.env.NODE_ENV),
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
 };
