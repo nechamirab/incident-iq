@@ -8,15 +8,15 @@ The system is designed to always separate **facts** (directly supported by evide
 **assumptions** (plausible but unproven), **hypotheses** (explanations requiring testing), and
 **actions** (concrete next steps). It never presents a hypothesis as a confirmed root cause.
 
-> **Status:** Stage 5 — Incident Summary and Evidence Workspace. Stage 1 established the
-> frontend/backend skeleton; Stage 2 added the domain model and mock data; Stage 3 made incident
-> creation and file upload real; Stage 4 built the AI analysis pipeline. Stage 5 makes the Incident
-> Workspace real: a tabbed layout (Overview, Evidence, Facts & Assumptions implemented; Timeline,
-> Hypotheses, Reasoning Risks, Recommended Actions, AI Review, and Postmortem shown as named
-> placeholders for the stages that build them), an evidence browser with search/filter/copy and
-> "referenced by" cross-links back to analysis claims, and human review controls
-> (`PATCH /api/incidents/:incidentId/statements/:statementId/review`) for marking a fact or
-> assumption supported, partially supported, unsupported, or rejected.
+> **Status:** Stage 6 — Timeline and Hypotheses. Stage 1 established the frontend/backend
+> skeleton; Stage 2 added the domain model and mock data; Stage 3 made incident creation and file
+> upload real; Stage 4 built the AI analysis pipeline; Stage 5 made the Incident Workspace real
+> (Overview, Evidence, Facts & Assumptions). Stage 6 fills in two more workspace tabs — Timeline
+> (chronological events with an explicit exact/approximate/inferred/unknown label on every
+> timestamp) and Hypotheses (ranked by confidence, each with supporting *and* contradicting
+> evidence shown as distinct groups, assumptions, and a concrete recommended test) — using data
+> the AI pipeline has produced since Stage 4. Reasoning Risks, Recommended Actions, AI Review, and
+> Postmortem remain named placeholders for Stages 7–9.
 
 ## Architecture
 
@@ -96,8 +96,8 @@ incident is never left stuck in a transient state.
 
 `/incidents/:incidentId` (`IncidentWorkspacePage`) is a tabbed layout listing all nine sections
 the finished app will have (`src/constants/workspaceSections.ts`); sections not yet built render a
-named placeholder ("Timeline is not implemented yet... Stage 6") rather than being hidden, so the
-intended navigation is visible end to end. Three sections are fully implemented:
+named placeholder ("Reasoning Risks is not implemented yet... Stage 7") rather than being hidden,
+so the intended navigation is visible end to end. Five sections are fully implemented:
 
 - **Overview** — the incident description, plus the *latest* analysis run's summary, impact,
   affected components, uncertainty statement, validation warnings, and provenance
@@ -109,12 +109,28 @@ intended navigation is visible end to end. Three sections are fully implemented:
   computed from the latest run via `buildEvidenceReferenceIndex` — which facts, assumptions,
   hypotheses, timeline events, reasoning risks, or recommended actions cite it (e.g. "Referenced by
   2 facts, 1 hypothesis").
+- **Timeline** — the latest run's events in chronological order (`sortTimelineEvents`, applied
+  defensively even though the backend already sorts them), each showing an explicit
+  exact/approximate/inferred/unknown label for its timestamp *and* a separate, clearly worded
+  warning when `isInferred` is true — the type label and the inferred flag are shown independently
+  since a timestamp can be inferred in a way its type label alone doesn't make obvious.
+- **Hypotheses** — every candidate explanation, ranked by confidence
+  (`sortHypothesesByConfidence`) but rendered with equal detail regardless of rank, since
+  confidence is an investigation aid, not a verdict. Each card shows confidence as a progress bar
+  *plus* a numeric value *plus* a text descriptor ("Moderate confidence") — never color alone —
+  supporting and contradicting evidence as visually distinct groups (an empty contradicting list
+  says so explicitly, rather than being blank), assumptions, the recommended test, expected
+  result, and status (the AI can only ever leave a hypothesis `proposed`).
 - **Facts & Assumptions** — facts, assumptions, and unsupported claims are always rendered as
   three visually distinct groups, never mixed. Each fact/assumption has a
   `ReviewStatusControl` wired to `PATCH .../statements/:statementId/review`
   (`InMemoryIncidentRepository.updateStatementReviewStatus` searches every analysis run on the
   incident for the matching statement id) — a human reviewer can mark any one supported, partially
   supported, unsupported, or rejected, independent of the AI's own confidence score.
+
+Every evidence id shown anywhere in Timeline or Hypotheses (`EvidenceReferenceChips`) is a
+clickable chip that jumps to the Evidence tab with that id pre-filled into the search box — a
+cited piece of evidence is always one click away from the claim that cites it.
 
 Search text, the active evidence-type filter, and the active tab are held in `useWorkspaceStore`
 (Zustand) — genuinely client-only UI state, reset whenever the user navigates to a different
@@ -179,7 +195,8 @@ incident-iq/
     components/layout/     # Shared layout (header, shell)
     components/incidents/  # NewIncidentForm, LoadSampleIncidentButton, IncidentCreatedPanel
     components/evidence/   # EvidenceCard, FileUploadZone (drag-drop, preview, remove)
-    components/workspace/  # WorkspaceHeader, Overview/Evidence/FactsAssumptions sections, ReviewStatusControl, PlaceholderSection
+    components/workspace/  # WorkspaceHeader, Overview/Evidence/Timeline/Hypotheses/FactsAssumptions sections,
+                            # HypothesisCard, ConfidenceIndicator, EvidenceReferenceChips, ReviewStatusControl, PlaceholderSection
     components/common/     # ControlledTextField, CopyButton
     pages/                 # Route-level page components
     hooks/                 # React hooks (useIncident(s), useCreateIncident, useAnalyzeIncident, useReviewStatement, ...)
@@ -188,7 +205,7 @@ incident-iq/
     schemas/               # Frontend-only Zod schemas (New Incident form)
     constants/              # Routes, query keys, workspace section config
     theme/                 # MUI theme tokens
-    utils/                 # File validation/size formatting, evidence filtering/reference-indexing, status-display mapping
+    utils/                 # File validation/size formatting, evidence filtering/reference-indexing/sorting, status-display mapping
   server/                  # Backend application
     src/
       app.ts               # Express app factory (dependency-injectable repository + AI provider)
@@ -278,9 +295,12 @@ successful load confirms the full stack is wired correctly.
 
 To see the full loop: open the Dashboard, click "Start a new incident", click "Load sample
 incident" to prefill a realistic example, then "Save & analyze incident" — you'll land on that
-incident's workspace with a real (mock, by default) analysis already run. From there, Overview
-shows the summary/impact/uncertainty statement, Evidence is searchable/filterable, and Facts &
-Assumptions lets you mark any statement's review status.
+incident's workspace with a real (mock, by default) analysis already run. From there: Overview
+shows the summary/impact/uncertainty statement, Evidence is searchable/filterable, Timeline shows
+chronological events with confidence-labeled timestamps, Hypotheses shows every candidate
+explanation ranked by confidence with supporting/contradicting evidence, and Facts & Assumptions
+lets you mark any statement's review status. Clicking any evidence id chip in Timeline or
+Hypotheses jumps straight to that evidence item.
 
 ## Building
 
@@ -306,49 +326,39 @@ npm run test:client   # frontend only (Vitest, node environment)
 npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-239 tests total:
+253 tests total:
 
-- **Backend** (`server/tests/`, 184 tests) — every Zod schema, sample-data integrity, full
-  `IncidentRepository` CRUD (including `updateStatementReviewStatus`: updates a fact, updates an
-  assumption without touching facts, 404s on a missing incident/statement, bumps `updatedAt`),
-  every parser, the full AI pipeline (mock provider determinism and evidence-grounding, response
-  validation, evidence-reference/unsupported-claim detection, the scripted-provider retry flow,
-  the Anthropic missing-key path), and full API route tests via Supertest — each test run gets its
-  own isolated in-memory repository and AI provider via dependency injection
-  (`createApp({ incidentRepository, aiProvider })`), never the shared process singletons. New this
-  stage: `PATCH /api/incidents/:id/statements/:id/review` tested end-to-end against a *real*
-  analysis run (analyze with `MockAIProvider`, then mark a real fact/assumption reviewed), plus
-  404s for a missing incident or statement and 400 for an invalid review status.
-- **Frontend** (`tests/`, 55 tests) — the New Incident form's Zod schema, client-side file
-  validation, file-size formatting, sample-incident-to-form-values reconstruction,
-  `getLatestAnalysisRun`, `filterEvidence` (search × source-type, combined as AND),
-  `buildEvidenceReferenceIndex`/`summarizeEvidenceReferences` (a fact and a hypothesis's
-  supporting/contradicting evidence indexed correctly, references accumulate per evidence id),
-  `statusDisplay`'s severity/status/review-status → label+color mapping (asserting the "green only
-  for human-reviewed supported items" rule specifically), and `useWorkspaceStore`'s state
-  transitions and per-incident reset.
+- **Backend** (`server/tests/`, 184 tests, unchanged this stage — no backend changes were needed;
+  Timeline and Hypotheses data has existed on every `AnalysisRun` since Stage 4) — every Zod
+  schema, sample-data integrity, full `IncidentRepository` CRUD, every parser, the full AI
+  pipeline, and full API route tests via Supertest, each with an isolated in-memory repository and
+  AI provider via dependency injection.
+- **Frontend** (`tests/`, 69 tests) — everything from prior stages, plus this stage's:
+  `sortTimelineEvents` (chronological ordering, non-mutating, stable on already-sorted input),
+  `sortHypothesesByConfidence` (highest first, non-mutating), `getConfidenceDescriptor` (threshold
+  boundaries at 40/70), and `statusDisplay`'s new hypothesis-status mapping (`supported` and
+  `confirmed-by-human` both map to a success color but keep visually distinct text labels, per the
+  "never mixed" rule) and timestamp-type mapping (`inferred` gets a different color than `exact`).
 
-Full component-level React Testing Library tests are introduced in Stage 10 — the workspace UI
-(tabs, evidence cards, review controls) is exercised via its underlying pure logic and via live API
-smoke tests against a running server, not by rendering React components in a test runner.
-`AnthropicAIProvider` is still not exercised against the live Anthropic API (no network calls in
-tests, no API key available in this environment).
+Full component-level React Testing Library tests are introduced in Stage 10 — the workspace UI is
+exercised via its underlying pure logic and via live API smoke tests against a running server, not
+by rendering React components in a test runner. `AnthropicAIProvider` is still not exercised
+against the live Anthropic API (no network calls in tests, no API key available in this
+environment).
 
-## Known limitations (Stage 5)
+## Known limitations (Stage 6)
 
-- Six of the nine workspace tabs (Timeline, Hypotheses, Reasoning Risks, Recommended Actions, AI
-  Review, Postmortem) are placeholders naming the stage that builds them (6–9) — the data already
-  exists on each `AnalysisRun` (Stage 4), it just isn't rendered yet.
-- The skeptic/critical review pass and postmortem generation are separate features from later
-  stages (8–9) and are not implemented.
+- Four of the nine workspace tabs (Reasoning Risks, Recommended Actions, AI Review, Postmortem)
+  remain placeholders naming the stage that builds them (7–9) — the data already exists on each
+  `AnalysisRun`, it just isn't rendered yet.
 - Redaction of sensitive values before sending evidence to a real AI provider is still not
   implemented (unchanged from Stage 4) — evidence is sent to Anthropic as-is when
   `AI_PROVIDER=anthropic`.
 - No full-page/component-level frontend test suite (React Testing Library) yet, and no browser
-  tool is available in this environment to click through the new workspace UI — verified instead
-  via a live smoke test of the real running server (analyze a sample incident, confirm
-  `uncertaintyStatement` and facts persist correctly, mark a fact "supported" via the review
-  endpoint, confirm it sticks).
+  tool is available in this environment to click through the new Timeline/Hypotheses UI —
+  typecheck, lint, the full test suite, and a production build were all verified; the underlying
+  data (via `GET /api/incidents/:id` after analysis) was already confirmed correctly shaped by
+  Stage 4/5's live smoke tests, and no backend code changed this stage.
 
 ## Roadmap
 

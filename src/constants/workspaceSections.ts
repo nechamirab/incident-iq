@@ -17,8 +17,8 @@ export interface WorkspaceSectionConfig {
 export const WORKSPACE_SECTIONS: readonly WorkspaceSectionConfig[] = [
   { id: 'overview', label: 'Overview', arrivingInStage: null },
   { id: 'evidence', label: 'Evidence', arrivingInStage: null },
-  { id: 'timeline', label: 'Timeline', arrivingInStage: 6 },
-  { id: 'hypotheses', label: 'Hypotheses', arrivingInStage: 6 },
+  { id: 'timeline', label: 'Timeline', arrivingInStage: null },
+  { id: 'hypotheses', label: 'Hypotheses', arrivingInStage: null },
   { id: 'facts-assumptions', label: 'Facts & Assumptions', arrivingInStage: null },
   { id: 'reasoning-risks', label: 'Reasoning Risks', arrivingInStage: 7 },
   { id: 'actions', label: 'Recommended Actions', arrivingInStage: 7 },

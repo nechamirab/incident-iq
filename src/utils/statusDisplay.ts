@@ -1,6 +1,8 @@
 import type { ChipProps } from '@mui/material';
+import type { HypothesisStatus } from '../../shared/types/hypothesis';
 import type { IncidentSeverity, IncidentStatus } from '../../shared/types/incident';
 import type { ReviewStatus } from '../../shared/types/reasoning';
+import type { TimestampType } from '../../shared/types/timeline';
 
 export interface StatusDisplay {
   label: string;
@@ -36,6 +38,22 @@ const REVIEW_STATUS_DISPLAY: Record<ReviewStatus, StatusDisplay> = {
   rejected: { label: 'Rejected', color: 'error' },
 };
 
+const HYPOTHESIS_STATUS_DISPLAY: Record<HypothesisStatus, StatusDisplay> = {
+  proposed: { label: 'Proposed', color: 'default' },
+  testing: { label: 'Testing', color: 'info' },
+  supported: { label: 'Supported', color: 'success' },
+  weakened: { label: 'Weakened', color: 'warning' },
+  rejected: { label: 'Rejected', color: 'error' },
+  'confirmed-by-human': { label: 'Confirmed by human', color: 'success' },
+};
+
+const TIMESTAMP_TYPE_DISPLAY: Record<TimestampType, StatusDisplay> = {
+  exact: { label: 'Exact', color: 'success' },
+  approximate: { label: 'Approximate', color: 'info' },
+  inferred: { label: 'Inferred', color: 'warning' },
+  unknown: { label: 'Unknown', color: 'default' },
+};
+
 export function getSeverityDisplay(severity: IncidentSeverity): StatusDisplay {
   return SEVERITY_DISPLAY[severity];
 }
@@ -46,6 +64,14 @@ export function getIncidentStatusDisplay(status: IncidentStatus): StatusDisplay 
 
 export function getReviewStatusDisplay(reviewStatus: ReviewStatus): StatusDisplay {
   return REVIEW_STATUS_DISPLAY[reviewStatus];
+}
+
+export function getHypothesisStatusDisplay(status: HypothesisStatus): StatusDisplay {
+  return HYPOTHESIS_STATUS_DISPLAY[status];
+}
+
+export function getTimestampTypeDisplay(timestampType: TimestampType): StatusDisplay {
+  return TIMESTAMP_TYPE_DISPLAY[timestampType];
 }
 
 export const REVIEW_STATUS_OPTIONS: readonly ReviewStatus[] = [

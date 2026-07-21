@@ -4,8 +4,10 @@ import { useParams } from 'react-router-dom';
 import { WORKSPACE_SECTIONS } from '../../constants/workspaceSections';
 import { EvidenceSection } from '../../components/workspace/EvidenceSection';
 import { FactsAssumptionsSection } from '../../components/workspace/FactsAssumptionsSection';
+import { HypothesesSection } from '../../components/workspace/HypothesesSection';
 import { OverviewSection } from '../../components/workspace/OverviewSection';
 import { PlaceholderSection } from '../../components/workspace/PlaceholderSection';
+import { TimelineSection } from '../../components/workspace/TimelineSection';
 import { WorkspaceHeader } from '../../components/workspace/WorkspaceHeader';
 import { useAnalyzeIncident } from '../../hooks/useAnalyzeIncident';
 import { useIncident } from '../../hooks/useIncident';
@@ -13,9 +15,10 @@ import { useWorkspaceStore, type WorkspaceSection } from '../../store/workspaceS
 
 /**
  * The Incident Workspace: fetches the incident and renders a tabbed
- * layout. Overview, Evidence, and Facts & Assumptions are fully
- * implemented; the remaining sections show a placeholder naming the stage
- * that introduces them, so the intended navigation is visible end to end.
+ * layout. Overview, Evidence, Facts & Assumptions, Timeline, and
+ * Hypotheses are fully implemented; the remaining sections show a
+ * placeholder naming the stage that introduces them, so the intended
+ * navigation is visible end to end.
  */
 export function IncidentWorkspacePage(): ReactNode {
   const { incidentId } = useParams<{ incidentId: string }>();
@@ -89,6 +92,8 @@ export function IncidentWorkspacePage(): ReactNode {
       <Box role="tabpanel" aria-labelledby={`workspace-tab-${activeSection}`}>
         {activeSection === 'overview' && <OverviewSection incident={incident} />}
         {activeSection === 'evidence' && <EvidenceSection incident={incident} />}
+        {activeSection === 'timeline' && <TimelineSection incident={incident} />}
+        {activeSection === 'hypotheses' && <HypothesesSection incident={incident} />}
         {activeSection === 'facts-assumptions' && <FactsAssumptionsSection incident={incident} />}
         {(() => {
           const section = WORKSPACE_SECTIONS.find((candidate) => candidate.id === activeSection);

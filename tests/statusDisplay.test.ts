@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getHypothesisStatusDisplay,
   getIncidentStatusDisplay,
   getReviewStatusDisplay,
   getSeverityDisplay,
+  getTimestampTypeDisplay,
 } from '../src/utils/statusDisplay';
 
 describe('getSeverityDisplay', () => {
@@ -54,5 +56,42 @@ describe('getReviewStatusDisplay', () => {
     ] as const) {
       expect(getReviewStatusDisplay(status).label.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('getHypothesisStatusDisplay', () => {
+  it('gives a success color to both supported and confirmed-by-human, with distinct labels', () => {
+    expect(getHypothesisStatusDisplay('supported').color).toBe('success');
+    expect(getHypothesisStatusDisplay('confirmed-by-human').color).toBe('success');
+    expect(getHypothesisStatusDisplay('supported').label).not.toBe(
+      getHypothesisStatusDisplay('confirmed-by-human').label,
+    );
+  });
+
+  it('gives every status a non-empty text label', () => {
+    for (const status of [
+      'proposed',
+      'testing',
+      'supported',
+      'weakened',
+      'rejected',
+      'confirmed-by-human',
+    ] as const) {
+      expect(getHypothesisStatusDisplay(status).label.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('getTimestampTypeDisplay', () => {
+  it('gives every timestamp type a non-empty text label', () => {
+    for (const type of ['exact', 'approximate', 'inferred', 'unknown'] as const) {
+      expect(getTimestampTypeDisplay(type).label.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('distinguishes inferred from exact with a different color', () => {
+    expect(getTimestampTypeDisplay('inferred').color).not.toBe(
+      getTimestampTypeDisplay('exact').color,
+    );
   });
 });
