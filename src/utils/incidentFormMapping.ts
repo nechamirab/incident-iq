@@ -23,6 +23,14 @@ export function toDatetimeLocalValue(iso: string): string {
  * has no corresponding form field (e.g. `uploaded-file`) are not
  * reconstructed -- files cannot be re-derived from stored evidence text.
  *
+ * Each reconstructed line is prefixed with `[<timestamp>]` when the
+ * original evidence item had one, so its exact time survives being
+ * resubmitted as plain text -- see `server/src/parsers/textParser.ts`'s
+ * `extractLeadingTimestamp`, which recognizes and strips this same prefix.
+ * Without this, re-analyzing an incident created from a loaded sample
+ * would always produce an empty Timeline, since none of its evidence
+ * would carry a timestamp anymore.
+ *
  * @param incident The incident to load into the form.
  * @returns Form values ready to pass to `reset()`.
  */
@@ -35,7 +43,8 @@ export function buildFormValuesFromIncident(incident: Incident): NewIncidentForm
     if (!config) {
       continue;
     }
-    (linesByField[config.field] ??= []).push(item.originalContent);
+    const timestampPrefix = item.timestamp ? `[${item.timestamp}] ` : '';
+    (linesByField[config.field] ??= []).push(`${timestampPrefix}${item.originalContent}`);
   }
 
   return {

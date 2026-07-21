@@ -116,4 +116,82 @@ describe('buildFormValuesFromIncident', () => {
     const values = buildFormValuesFromIncident(incident);
     expect(Object.values(values).some((value) => value === 'from a file')).toBe(false);
   });
+
+  it('prefixes a reconstructed line with its timestamp in brackets, when the evidence has one', () => {
+    const incident = buildIncident({
+      evidence: [
+        {
+          id: 'ev-1',
+          incidentId: 'sample-1',
+          sourceType: 'deployment-note',
+          sourceName: 'Deployment notes',
+          originalContent: 'Deploy v2.4.1 completed',
+          normalizedContent: 'Deploy v2.4.1 completed',
+          timestamp: '2026-06-14T14:28:00Z',
+          lineNumber: null,
+          metadata: {},
+          createdAt: '2026-06-14T14:41:00Z',
+        },
+      ],
+    });
+
+    const values = buildFormValuesFromIncident(incident);
+    expect(values.deploymentNotes).toBe('[2026-06-14T14:28:00Z] Deploy v2.4.1 completed');
+  });
+
+  it('reconstructs a line with no prefix when the evidence has no timestamp', () => {
+    const incident = buildIncident({
+      evidence: [
+        {
+          id: 'ev-1',
+          incidentId: 'sample-1',
+          sourceType: 'user-report',
+          sourceName: 'User complaints',
+          originalContent: 'Checkout is broken',
+          normalizedContent: 'Checkout is broken',
+          timestamp: null,
+          lineNumber: null,
+          metadata: {},
+          createdAt: '2026-06-14T14:41:00Z',
+        },
+      ],
+    });
+
+    const values = buildFormValuesFromIncident(incident);
+    expect(values.userComplaints).toBe('Checkout is broken');
+  });
+
+  it('gives each reconstructed line its own timestamp prefix within a multi-line field', () => {
+    const incident = buildIncident({
+      evidence: [
+        {
+          id: 'ev-1',
+          incidentId: 'sample-1',
+          sourceType: 'application-log',
+          sourceName: 'Application logs',
+          originalContent: 'first',
+          normalizedContent: 'first',
+          timestamp: '2026-06-14T14:28:00Z',
+          lineNumber: 1,
+          metadata: {},
+          createdAt: '2026-06-14T14:41:00Z',
+        },
+        {
+          id: 'ev-2',
+          incidentId: 'sample-1',
+          sourceType: 'application-log',
+          sourceName: 'Application logs',
+          originalContent: 'second',
+          normalizedContent: 'second',
+          timestamp: null,
+          lineNumber: 2,
+          metadata: {},
+          createdAt: '2026-06-14T14:41:00Z',
+        },
+      ],
+    });
+
+    const values = buildFormValuesFromIncident(incident);
+    expect(values.applicationLogs).toBe('[2026-06-14T14:28:00Z] first\nsecond');
+  });
 });

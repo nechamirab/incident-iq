@@ -70,4 +70,44 @@ describe('POST /api/incidents/:incidentId/analyze', () => {
     expect(body<null>(response).error?.code).toBe('AI_PROVIDER_NOT_CONFIGURED');
     expect(body<null>(response).error?.message).toMatch(/AI_PROVIDER=mock/);
   });
+
+  it('produces a non-empty timeline for an incident created from "Load sample incident"-style reconstructed text', async () => {
+    // Mirrors buildFormValuesFromIncident: each evidence line reconstructed
+    // as "[<timestamp>] <content>", then resubmitted as plain text -- the
+    // exact "Load sample incident" -> "Save & analyze incident" path.
+    const app = buildApp(new MockAIProvider());
+    const sample = sampleIncidents[0];
+    const deploymentNoteLines = sample.evidence
+      .filter((item) => item.sourceType === 'deployment-note')
+      .map((item) => `[${item.timestamp}] ${item.originalContent}`)
+      .join('\n');
+    const applicationLogLines = sample.evidence
+      .filter((item) => item.sourceType === 'application-log')
+      .map((item) => `[${item.timestamp}] ${item.originalContent}`)
+      .join('\n');
+
+    const createResponse = await request(app)
+      .post('/api/incidents')
+      .field('title', sample.title)
+      .field('description', sample.description)
+      .field('severity', sample.severity)
+      .field('affectedService', sample.affectedService)
+      .field('detectedAt', sample.detectedAt)
+      .field('deploymentNotes', deploymentNoteLines)
+      .field('applicationLogs', applicationLogLines);
+
+    expect(createResponse.status).toBe(201);
+    const newIncidentId = body<{ id: string; evidence: { timestamp: string | null }[] }>(
+      createResponse,
+    ).data?.id;
+
+    const reconstructedEvidence = body<{ evidence: { timestamp: string | null }[] }>(createResponse)
+      .data?.evidence;
+    expect(reconstructedEvidence?.some((item) => item.timestamp !== null)).toBe(true);
+
+    const analyzeResponse = await request(app).post(`/api/incidents/${newIncidentId}/analyze`);
+    expect(analyzeResponse.status).toBe(201);
+    const run = body<AnalysisRun>(analyzeResponse).data;
+    expect(run?.timeline.length).toBeGreaterThan(0);
+  });
 });

@@ -3,6 +3,42 @@ import { createId } from '../utils/id.js';
 import { normalizeLineEndings } from '../utils/normalizeText.js';
 import { splitNonEmptyLines } from '../utils/splitLines.js';
 
+const LEADING_TIMESTAMP_PATTERN = /^\[([^\]]+)\]\s*/;
+
+interface ExtractedTimestamp {
+  timestamp: string | null;
+  content: string;
+}
+
+/**
+ * Recognizes and strips a leading bracketed timestamp prefix (e.g.
+ * `"[2026-06-14T14:28:00Z] "`), returning the ISO timestamp it encodes and
+ * the remaining content with the prefix removed. If there is no bracketed
+ * prefix, or its contents don't parse as a date, the content is returned
+ * unchanged and `timestamp` is `null`.
+ *
+ * This is the mechanism that lets a pasted evidence line carry an exact
+ * timestamp (`EVIDENCE_TEXT_FIELDS`' helper text documents the convention
+ * for users), and how `buildFormValuesFromIncident` (frontend) round-trips
+ * a sample incident's evidence timestamps through the New Incident form's
+ * plain-text fields when prefilling from "Load sample incident" -- without
+ * it, evidence reconstructed from a loaded sample would always lose its
+ * timestamps and produce an empty Timeline once re-analyzed.
+ */
+function extractLeadingTimestamp(content: string): ExtractedTimestamp {
+  const match = LEADING_TIMESTAMP_PATTERN.exec(content);
+  if (!match) {
+    return { timestamp: null, content };
+  }
+
+  const candidate = new Date(match[1]);
+  if (Number.isNaN(candidate.getTime())) {
+    return { timestamp: null, content };
+  }
+
+  return { timestamp: candidate.toISOString(), content: content.slice(match[0].length) };
+}
+
 /**
  * Parses free-form, line-oriented text (a pasted textarea value, or the
  * contents of an uploaded `.txt`/`.log` file) into one evidence item per
@@ -27,24 +63,30 @@ export function parseTextContent(
   sourceName: string,
   createdAt: string,
 ): EvidenceItem[] {
-  return splitNonEmptyLines(content).map((line) => ({
-    id: createId('evidence'),
-    incidentId,
-    sourceType,
-    sourceName,
-    originalContent: line.content,
-    normalizedContent: normalizeLineEndings(line.content),
-    timestamp: null,
-    lineNumber: line.lineNumber,
-    metadata: {},
-    createdAt,
-  }));
+  return splitNonEmptyLines(content).map((line) => {
+    const { timestamp, content: lineContent } = extractLeadingTimestamp(line.content);
+
+    return {
+      id: createId('evidence'),
+      incidentId,
+      sourceType,
+      sourceName,
+      originalContent: lineContent,
+      normalizedContent: normalizeLineEndings(lineContent),
+      timestamp,
+      lineNumber: line.lineNumber,
+      metadata: {},
+      createdAt,
+    };
+  });
 }
 
 /**
  * Parses free-form prose (the incident description) as a single evidence
  * item, unlike {@link parseTextContent} which treats its input as
- * line-oriented log data. Returns an empty array for blank input.
+ * line-oriented log data. Also recognizes a leading bracketed timestamp
+ * prefix (see {@link extractLeadingTimestamp}). Returns an empty array for
+ * blank input.
  *
  * @param content Raw, untrusted text.
  * @param incidentId The incident this evidence belongs to.
@@ -65,15 +107,18 @@ export function parseSingleBlock(
     return [];
   }
 
+  const { timestamp, content: strippedNormalized } = extractLeadingTimestamp(normalized);
+  const { content: strippedOriginal } = extractLeadingTimestamp(content.trim());
+
   return [
     {
       id: createId('evidence'),
       incidentId,
       sourceType,
       sourceName,
-      originalContent: content.trim(),
-      normalizedContent: normalized,
-      timestamp: null,
+      originalContent: strippedOriginal,
+      normalizedContent: strippedNormalized,
+      timestamp,
       lineNumber: null,
       metadata: {},
       createdAt,

@@ -58,6 +58,55 @@ describe('parseTextContent', () => {
       [],
     );
   });
+
+  it('extracts a leading bracketed ISO timestamp and strips it from the content', () => {
+    const [item] = parseTextContent(
+      '[2026-06-14T14:28:00Z] Deploy v2.4.1 completed',
+      INCIDENT_ID,
+      'deployment-note',
+      'Deployment notes',
+      CREATED_AT,
+    );
+
+    expect(item.timestamp).toBe('2026-06-14T14:28:00.000Z');
+    expect(item.originalContent).toBe('Deploy v2.4.1 completed');
+    expect(item.normalizedContent).toBe('Deploy v2.4.1 completed');
+  });
+
+  it('leaves timestamp null and content untouched when a line has no bracket prefix', () => {
+    const [item] = parseTextContent('DB timeout', INCIDENT_ID, 'database-error', 'x', CREATED_AT);
+    expect(item.timestamp).toBeNull();
+    expect(item.originalContent).toBe('DB timeout');
+  });
+
+  it('does not treat an unparseable bracketed prefix as a timestamp', () => {
+    const [item] = parseTextContent(
+      '[not-a-date] something happened',
+      INCIDENT_ID,
+      'application-log',
+      'x',
+      CREATED_AT,
+    );
+    expect(item.timestamp).toBeNull();
+    expect(item.originalContent).toBe('[not-a-date] something happened');
+  });
+
+  it('extracts a distinct timestamp per line', () => {
+    const items = parseTextContent(
+      '[2026-06-14T14:28:00Z] first\n[2026-06-14T14:33:00Z] second\nthird (no timestamp)',
+      INCIDENT_ID,
+      'application-log',
+      'x',
+      CREATED_AT,
+    );
+
+    expect(items.map((item) => item.timestamp)).toEqual([
+      '2026-06-14T14:28:00.000Z',
+      '2026-06-14T14:33:00.000Z',
+      null,
+    ]);
+    expect(items.map((item) => item.originalContent)).toEqual(['first', 'second', 'third (no timestamp)']);
+  });
 });
 
 describe('parseSingleBlock', () => {
@@ -73,6 +122,31 @@ describe('parseSingleBlock', () => {
     expect(items).toHaveLength(1);
     expect(items[0].lineNumber).toBeNull();
     expect(items[0].normalizedContent).toContain('Line two');
+  });
+
+  it('extracts a leading bracketed timestamp from a prose block', () => {
+    const [item] = parseSingleBlock(
+      '[2026-06-14T14:41:00Z] Customers could not complete checkout.',
+      INCIDENT_ID,
+      'incident-description',
+      'Incident description',
+      CREATED_AT,
+    );
+
+    expect(item.timestamp).toBe('2026-06-14T14:41:00.000Z');
+    expect(item.originalContent).toBe('Customers could not complete checkout.');
+    expect(item.normalizedContent).toBe('Customers could not complete checkout.');
+  });
+
+  it('leaves timestamp null when a prose block has no bracket prefix', () => {
+    const [item] = parseSingleBlock(
+      'Customers could not complete checkout.',
+      INCIDENT_ID,
+      'incident-description',
+      'x',
+      CREATED_AT,
+    );
+    expect(item.timestamp).toBeNull();
   });
 
   it('returns an empty array for blank input', () => {
