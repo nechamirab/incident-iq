@@ -8,15 +8,17 @@ The system is designed to always separate **facts** (directly supported by evide
 **assumptions** (plausible but unproven), **hypotheses** (explanations requiring testing), and
 **actions** (concrete next steps). It never presents a hypothesis as a confirmed root cause.
 
-> **Status:** Stage 6 — Timeline and Hypotheses. Stage 1 established the frontend/backend
+> **Status:** Stage 7 — Reasoning Risks and Actions. Stage 1 established the frontend/backend
 > skeleton; Stage 2 added the domain model and mock data; Stage 3 made incident creation and file
 > upload real; Stage 4 built the AI analysis pipeline; Stage 5 made the Incident Workspace real
-> (Overview, Evidence, Facts & Assumptions). Stage 6 fills in two more workspace tabs — Timeline
-> (chronological events with an explicit exact/approximate/inferred/unknown label on every
-> timestamp) and Hypotheses (ranked by confidence, each with supporting *and* contradicting
-> evidence shown as distinct groups, assumptions, and a concrete recommended test) — using data
-> the AI pipeline has produced since Stage 4. Reasoning Risks, Recommended Actions, AI Review, and
-> Postmortem remain named placeholders for Stages 7–9.
+> (Overview, Evidence, Facts & Assumptions); Stage 6 added Timeline and Hypotheses. Stage 7 fills
+> in the last two data-driven tabs — Reasoning Risks (cognitive biases/fallacies the analysis
+> flags about *itself*, never every known bias unconditionally) and Recommended Actions (ordered
+> by priority, each concrete and evidence-grounded) — and, unlike Stage 6, needed real backend
+> work: `MockAIProvider`'s bias detection was strengthened to reliably surface at least three
+> relevant risks (the spec's bar), and its recommended-action descriptions were rewritten to name
+> a specific metric, time window, or comparison instead of generic advice like "investigate
+> further". AI Review and Postmortem remain named placeholders for Stages 8–9.
 
 ## Architecture
 
@@ -57,8 +59,19 @@ and persists the result. The pipeline (`server/src/ai/`, orchestrated by
 - **`MockAIProvider`** — the default (`AI_PROVIDER=mock`). Fully deterministic and offline: it
   groups an incident's evidence by source type and derives a structured analysis from those
   clusters (facts, a timeline from every timestamped item, hypotheses padded to at least three
-  even for a nearly-empty incident, and reasoning risks including an honest "this is a mock, not a
-  reviewed analysis" automation-bias finding). It never pretends to be a real model.
+  even for a nearly-empty incident). It never pretends to be a real model. Its reasoning-risk
+  detection is a set of genuine, generic heuristics against the incident's actual data (not
+  hand-tuned to the bundled samples) that together reliably clear the spec's "at least three
+  relevant biases" bar for both richly- and sparsely-evidenced incidents: `automation-bias`
+  (always, an honest "this is a mock" disclosure), `confirmation-bias` (any hypothesis with no
+  contradicting evidence -- this mock never generates any), `base-rate-neglect` (fewer than 5
+  evidence items total), `post-hoc-fallacy` (deployment-note evidence present),
+  `anchoring-bias` (evidence timestamped before the incident's recorded start), and
+  `availability-bias` (one source type accounts for over half the evidence). Its recommended
+  actions are similarly concrete: each names a specific metric or comparison and the actual time
+  window drawn from that evidence cluster's own timestamps (e.g. "Query connection-pool
+  utilization... for the window between 2026-06-14T14:20:00Z and 2026-06-14T14:44:00Z"), never
+  generic advice like "investigate further".
 - **`AnthropicAIProvider`** — the real provider (`AI_PROVIDER=anthropic`), backed by the Anthropic
   Messages API. A missing `ANTHROPIC_API_KEY` is checked lazily, on first use, and raises a clear
   503 error explaining how to switch back to `mock` — it never crashes the app at startup.
@@ -96,8 +109,8 @@ incident is never left stuck in a transient state.
 
 `/incidents/:incidentId` (`IncidentWorkspacePage`) is a tabbed layout listing all nine sections
 the finished app will have (`src/constants/workspaceSections.ts`); sections not yet built render a
-named placeholder ("Reasoning Risks is not implemented yet... Stage 7") rather than being hidden,
-so the intended navigation is visible end to end. Five sections are fully implemented:
+named placeholder ("AI Review is not implemented yet... Stage 8") rather than being hidden, so the
+intended navigation is visible end to end. Seven sections are fully implemented:
 
 - **Overview** — the incident description, plus the *latest* analysis run's summary, impact,
   affected components, uncertainty statement, validation warnings, and provenance
@@ -127,10 +140,22 @@ so the intended navigation is visible end to end. Five sections are fully implem
   (`InMemoryIncidentRepository.updateStatementReviewStatus` searches every analysis run on the
   incident for the matching statement id) — a human reviewer can mark any one supported, partially
   supported, unsupported, or rejected, independent of the AI's own confidence score.
+- **Reasoning Risks** — only the biases the latest run actually flagged for itself, each showing
+  the bias name, where it was detected (`detectedIn`), why it's dangerous, a risk-level chip,
+  linked evidence (or an explicit note when a finding is about the analysis as a whole rather than
+  specific evidence), and a suggested mitigation.
+- **Recommended Actions** — every action from the latest run, sorted by priority
+  (`sortActionsByPriority`: immediate → high → medium → low), each showing its category, expected
+  outcome, risk, the evidence it's grounded in, and the hypothesis it relates to (resolved from id
+  to title, clickable to jump to the Hypotheses tab). Open investigation questions are shown
+  alongside, since an action's motivation is often "this would help answer an open question" —
+  the schema has no id-level link between the two (open questions are plain strings), so this is a
+  presentational connection, not a foreign key.
 
-Every evidence id shown anywhere in Timeline or Hypotheses (`EvidenceReferenceChips`) is a
-clickable chip that jumps to the Evidence tab with that id pre-filled into the search box — a
-cited piece of evidence is always one click away from the claim that cites it.
+Every evidence id shown anywhere in Timeline, Hypotheses, Reasoning Risks, or Recommended Actions
+(`EvidenceReferenceChips`) is a clickable chip that jumps to the Evidence tab with that id
+pre-filled into the search box — a cited piece of evidence is always one click away from the claim
+that cites it.
 
 Search text, the active evidence-type filter, and the active tab are held in `useWorkspaceStore`
 (Zustand) — genuinely client-only UI state, reset whenever the user navigates to a different
@@ -195,8 +220,9 @@ incident-iq/
     components/layout/     # Shared layout (header, shell)
     components/incidents/  # NewIncidentForm, LoadSampleIncidentButton, IncidentCreatedPanel
     components/evidence/   # EvidenceCard, FileUploadZone (drag-drop, preview, remove)
-    components/workspace/  # WorkspaceHeader, Overview/Evidence/Timeline/Hypotheses/FactsAssumptions sections,
-                            # HypothesisCard, ConfidenceIndicator, EvidenceReferenceChips, ReviewStatusControl, PlaceholderSection
+    components/workspace/  # WorkspaceHeader, Overview/Evidence/Timeline/Hypotheses/FactsAssumptions/
+                            # ReasoningRisks/RecommendedActions sections, HypothesisCard, ConfidenceIndicator,
+                            # EvidenceReferenceChips, ReviewStatusControl, PlaceholderSection
     components/common/     # ControlledTextField, CopyButton
     pages/                 # Route-level page components
     hooks/                 # React hooks (useIncident(s), useCreateIncident, useAnalyzeIncident, useReviewStatement, ...)
@@ -298,9 +324,10 @@ incident" to prefill a realistic example, then "Save & analyze incident" — you
 incident's workspace with a real (mock, by default) analysis already run. From there: Overview
 shows the summary/impact/uncertainty statement, Evidence is searchable/filterable, Timeline shows
 chronological events with confidence-labeled timestamps, Hypotheses shows every candidate
-explanation ranked by confidence with supporting/contradicting evidence, and Facts & Assumptions
-lets you mark any statement's review status. Clicking any evidence id chip in Timeline or
-Hypotheses jumps straight to that evidence item.
+explanation ranked by confidence with supporting/contradicting evidence, Facts & Assumptions lets
+you mark any statement's review status, Reasoning Risks shows the biases this specific analysis
+flagged about itself, and Recommended Actions shows concrete next steps ordered by priority.
+Clicking any evidence id chip anywhere jumps straight to that evidence item.
 
 ## Building
 
@@ -326,19 +353,23 @@ npm run test:client   # frontend only (Vitest, node environment)
 npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-253 tests total:
+289 tests total:
 
-- **Backend** (`server/tests/`, 184 tests, unchanged this stage — no backend changes were needed;
-  Timeline and Hypotheses data has existed on every `AnalysisRun` since Stage 4) — every Zod
-  schema, sample-data integrity, full `IncidentRepository` CRUD, every parser, the full AI
-  pipeline, and full API route tests via Supertest, each with an isolated in-memory repository and
-  AI provider via dependency injection.
-- **Frontend** (`tests/`, 69 tests) — everything from prior stages, plus this stage's:
-  `sortTimelineEvents` (chronological ordering, non-mutating, stable on already-sorted input),
-  `sortHypothesesByConfidence` (highest first, non-mutating), `getConfidenceDescriptor` (threshold
-  boundaries at 40/70), and `statusDisplay`'s new hypothesis-status mapping (`supported` and
-  `confirmed-by-human` both map to a success color but keep visually distinct text labels, per the
-  "never mixed" rule) and timestamp-type mapping (`inferred` gets a different color than `exact`).
+- **Backend** (`server/tests/`, 205 tests) — everything from prior stages, plus this stage's
+  `MockAIProvider` coverage: at least three reasoning risks for all three sample incidents *and* a
+  minimal one-evidence-item incident; each new heuristic firing under its specific condition and
+  *not* firing when that condition is absent (e.g. `base-rate-neglect` does not fire for a
+  richly-evidenced sample, `anchoring-bias` does not fire when `startedAt` is unknown,
+  `post-hoc-fallacy` only fires when deployment-note evidence exists); every recommended action's
+  description checked against a banned-generic-phrase list ("investigate further", "check the
+  logs", "debug the issue") and required to name a concrete time window or count; and a
+  database-check action's description specifically confirmed to mention connection-pool/query
+  metrics.
+- **Frontend** (`tests/`, 84 tests) — everything from prior stages, plus `sortActionsByPriority`
+  (immediate → high → medium → low, non-mutating, stable for equal priorities) and
+  `statusDisplay`'s new bias-type, risk-level, action-priority, action-category, and action-status
+  mappings (asserting all eight bias types get distinct non-empty labels, `immediate` priority and
+  `high` risk both map to the error color, `completed` status maps to success).
 
 Full component-level React Testing Library tests are introduced in Stage 10 — the workspace UI is
 exercised via its underlying pure logic and via live API smoke tests against a running server, not
@@ -346,19 +377,22 @@ by rendering React components in a test runner. `AnthropicAIProvider` is still n
 against the live Anthropic API (no network calls in tests, no API key available in this
 environment).
 
-## Known limitations (Stage 6)
+## Known limitations (Stage 7)
 
-- Four of the nine workspace tabs (Reasoning Risks, Recommended Actions, AI Review, Postmortem)
-  remain placeholders naming the stage that builds them (7–9) — the data already exists on each
-  `AnalysisRun`, it just isn't rendered yet.
+- Two of the nine workspace tabs (AI Review, Postmortem) remain placeholders naming the stage that
+  builds them (8–9).
+- Recommended Actions and open investigation questions are shown together in the same tab, but
+  there is no id-level link between a specific action and a specific question — `openQuestions` is
+  a plain `string[]` on `AnalysisRun`, not a list of objects with ids, matching the original data
+  model. The connection is presentational (shown side by side), not a foreign key.
 - Redaction of sensitive values before sending evidence to a real AI provider is still not
   implemented (unchanged from Stage 4) — evidence is sent to Anthropic as-is when
   `AI_PROVIDER=anthropic`.
 - No full-page/component-level frontend test suite (React Testing Library) yet, and no browser
-  tool is available in this environment to click through the new Timeline/Hypotheses UI —
-  typecheck, lint, the full test suite, and a production build were all verified; the underlying
-  data (via `GET /api/incidents/:id` after analysis) was already confirmed correctly shaped by
-  Stage 4/5's live smoke tests, and no backend code changed this stage.
+  tool is available in this environment to click through the new Reasoning Risks/Recommended
+  Actions UI — typecheck, lint, the full test suite, and a production build were all verified, plus
+  a live smoke test against the running server confirming all three sample incidents each produce
+  4 reasoning risks and 4 concrete, evidence-grounded recommended actions after analysis.
 
 ## Roadmap
 

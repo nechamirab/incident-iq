@@ -20,8 +20,8 @@ export const WORKSPACE_SECTIONS: readonly WorkspaceSectionConfig[] = [
   { id: 'timeline', label: 'Timeline', arrivingInStage: null },
   { id: 'hypotheses', label: 'Hypotheses', arrivingInStage: null },
   { id: 'facts-assumptions', label: 'Facts & Assumptions', arrivingInStage: null },
-  { id: 'reasoning-risks', label: 'Reasoning Risks', arrivingInStage: 7 },
-  { id: 'actions', label: 'Recommended Actions', arrivingInStage: 7 },
+  { id: 'reasoning-risks', label: 'Reasoning Risks', arrivingInStage: null },
+  { id: 'actions', label: 'Recommended Actions', arrivingInStage: null },
   { id: 'ai-review', label: 'AI Review', arrivingInStage: 8 },
   { id: 'postmortem', label: 'Postmortem', arrivingInStage: 9 },
 ] as const;

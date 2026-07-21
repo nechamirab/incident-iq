@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getActionCategoryLabel,
+  getActionPriorityDisplay,
+  getActionStatusDisplay,
+  getBiasTypeLabel,
   getHypothesisStatusDisplay,
   getIncidentStatusDisplay,
   getReviewStatusDisplay,
+  getRiskLevelDisplay,
   getSeverityDisplay,
   getTimestampTypeDisplay,
 } from '../src/utils/statusDisplay';
@@ -93,5 +98,80 @@ describe('getTimestampTypeDisplay', () => {
     expect(getTimestampTypeDisplay('inferred').color).not.toBe(
       getTimestampTypeDisplay('exact').color,
     );
+  });
+});
+
+describe('getBiasTypeLabel', () => {
+  it('gives every bias type a distinct, non-empty label', () => {
+    const types = [
+      'confirmation-bias',
+      'anchoring-bias',
+      'automation-bias',
+      'post-hoc-fallacy',
+      'availability-bias',
+      'overconfidence-bias',
+      'hindsight-bias',
+      'base-rate-neglect',
+    ] as const;
+    const labels = types.map(getBiasTypeLabel);
+    expect(labels.every((label) => label.length > 0)).toBe(true);
+    expect(new Set(labels).size).toBe(types.length);
+  });
+});
+
+describe('getRiskLevelDisplay', () => {
+  it('gives high risk an error color and low risk a non-error color', () => {
+    expect(getRiskLevelDisplay('high').color).toBe('error');
+    expect(getRiskLevelDisplay('low').color).not.toBe('error');
+  });
+
+  it('gives every risk level a non-empty text label', () => {
+    for (const level of ['low', 'medium', 'high'] as const) {
+      expect(getRiskLevelDisplay(level).label.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('getActionPriorityDisplay', () => {
+  it('gives immediate priority an error color', () => {
+    expect(getActionPriorityDisplay('immediate').color).toBe('error');
+  });
+
+  it('gives every priority a non-empty text label', () => {
+    for (const priority of ['immediate', 'high', 'medium', 'low'] as const) {
+      expect(getActionPriorityDisplay(priority).label.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('getActionCategoryLabel', () => {
+  it('gives every category a non-empty label', () => {
+    const categories = [
+      'inspect',
+      'reproduce',
+      'compare',
+      'rollback',
+      'monitor',
+      'communicate',
+      'collect-evidence',
+      'configuration-check',
+      'code-review',
+      'database-check',
+    ] as const;
+    for (const category of categories) {
+      expect(getActionCategoryLabel(category).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('getActionStatusDisplay', () => {
+  it('gives completed a success color', () => {
+    expect(getActionStatusDisplay('completed').color).toBe('success');
+  });
+
+  it('gives every status a non-empty text label', () => {
+    for (const status of ['suggested', 'in-progress', 'completed', 'dismissed'] as const) {
+      expect(getActionStatusDisplay(status).label.length).toBeGreaterThan(0);
+    }
   });
 });

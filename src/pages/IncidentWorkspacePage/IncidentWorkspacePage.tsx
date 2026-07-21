@@ -7,6 +7,8 @@ import { FactsAssumptionsSection } from '../../components/workspace/FactsAssumpt
 import { HypothesesSection } from '../../components/workspace/HypothesesSection';
 import { OverviewSection } from '../../components/workspace/OverviewSection';
 import { PlaceholderSection } from '../../components/workspace/PlaceholderSection';
+import { ReasoningRisksSection } from '../../components/workspace/ReasoningRisksSection';
+import { RecommendedActionsSection } from '../../components/workspace/RecommendedActionsSection';
 import { TimelineSection } from '../../components/workspace/TimelineSection';
 import { WorkspaceHeader } from '../../components/workspace/WorkspaceHeader';
 import { useAnalyzeIncident } from '../../hooks/useAnalyzeIncident';
@@ -15,10 +17,10 @@ import { useWorkspaceStore, type WorkspaceSection } from '../../store/workspaceS
 
 /**
  * The Incident Workspace: fetches the incident and renders a tabbed
- * layout. Overview, Evidence, Facts & Assumptions, Timeline, and
- * Hypotheses are fully implemented; the remaining sections show a
- * placeholder naming the stage that introduces them, so the intended
- * navigation is visible end to end.
+ * layout. Overview, Evidence, Timeline, Hypotheses, Facts & Assumptions,
+ * Reasoning Risks, and Recommended Actions are fully implemented; the
+ * remaining sections show a placeholder naming the stage that introduces
+ * them, so the intended navigation is visible end to end.
  */
 export function IncidentWorkspacePage(): ReactNode {
   const { incidentId } = useParams<{ incidentId: string }>();
@@ -95,6 +97,8 @@ export function IncidentWorkspacePage(): ReactNode {
         {activeSection === 'timeline' && <TimelineSection incident={incident} />}
         {activeSection === 'hypotheses' && <HypothesesSection incident={incident} />}
         {activeSection === 'facts-assumptions' && <FactsAssumptionsSection incident={incident} />}
+        {activeSection === 'reasoning-risks' && <ReasoningRisksSection incident={incident} />}
+        {activeSection === 'actions' && <RecommendedActionsSection incident={incident} />}
         {(() => {
           const section = WORKSPACE_SECTIONS.find((candidate) => candidate.id === activeSection);
           return section?.arrivingInStage ? (

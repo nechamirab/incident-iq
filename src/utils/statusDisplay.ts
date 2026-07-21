@@ -1,4 +1,6 @@
 import type { ChipProps } from '@mui/material';
+import type { ActionCategory, ActionPriority, ActionStatus } from '../../shared/types/action';
+import type { BiasType, RiskLevel } from '../../shared/types/bias';
 import type { HypothesisStatus } from '../../shared/types/hypothesis';
 import type { IncidentSeverity, IncidentStatus } from '../../shared/types/incident';
 import type { ReviewStatus } from '../../shared/types/reasoning';
@@ -54,6 +56,50 @@ const TIMESTAMP_TYPE_DISPLAY: Record<TimestampType, StatusDisplay> = {
   unknown: { label: 'Unknown', color: 'default' },
 };
 
+const BIAS_TYPE_LABEL: Record<BiasType, string> = {
+  'confirmation-bias': 'Confirmation bias',
+  'anchoring-bias': 'Anchoring bias',
+  'automation-bias': 'Automation bias',
+  'post-hoc-fallacy': 'Post-hoc fallacy',
+  'availability-bias': 'Availability bias',
+  'overconfidence-bias': 'Overconfidence bias',
+  'hindsight-bias': 'Hindsight bias',
+  'base-rate-neglect': 'Base-rate neglect',
+};
+
+const RISK_LEVEL_DISPLAY: Record<RiskLevel, StatusDisplay> = {
+  low: { label: 'Low risk', color: 'info' },
+  medium: { label: 'Medium risk', color: 'warning' },
+  high: { label: 'High risk', color: 'error' },
+};
+
+const ACTION_PRIORITY_DISPLAY: Record<ActionPriority, StatusDisplay> = {
+  immediate: { label: 'Immediate', color: 'error' },
+  high: { label: 'High', color: 'warning' },
+  medium: { label: 'Medium', color: 'info' },
+  low: { label: 'Low', color: 'default' },
+};
+
+const ACTION_CATEGORY_LABEL: Record<ActionCategory, string> = {
+  inspect: 'Inspect',
+  reproduce: 'Reproduce',
+  compare: 'Compare',
+  rollback: 'Rollback',
+  monitor: 'Monitor',
+  communicate: 'Communicate',
+  'collect-evidence': 'Collect evidence',
+  'configuration-check': 'Configuration check',
+  'code-review': 'Code review',
+  'database-check': 'Database check',
+};
+
+const ACTION_STATUS_DISPLAY: Record<ActionStatus, StatusDisplay> = {
+  suggested: { label: 'Suggested', color: 'default' },
+  'in-progress': { label: 'In progress', color: 'info' },
+  completed: { label: 'Completed', color: 'success' },
+  dismissed: { label: 'Dismissed', color: 'default' },
+};
+
 export function getSeverityDisplay(severity: IncidentSeverity): StatusDisplay {
   return SEVERITY_DISPLAY[severity];
 }
@@ -72,6 +118,26 @@ export function getHypothesisStatusDisplay(status: HypothesisStatus): StatusDisp
 
 export function getTimestampTypeDisplay(timestampType: TimestampType): StatusDisplay {
   return TIMESTAMP_TYPE_DISPLAY[timestampType];
+}
+
+export function getBiasTypeLabel(biasType: BiasType): string {
+  return BIAS_TYPE_LABEL[biasType];
+}
+
+export function getRiskLevelDisplay(riskLevel: RiskLevel): StatusDisplay {
+  return RISK_LEVEL_DISPLAY[riskLevel];
+}
+
+export function getActionPriorityDisplay(priority: ActionPriority): StatusDisplay {
+  return ACTION_PRIORITY_DISPLAY[priority];
+}
+
+export function getActionCategoryLabel(category: ActionCategory): string {
+  return ACTION_CATEGORY_LABEL[category];
+}
+
+export function getActionStatusDisplay(status: ActionStatus): StatusDisplay {
+  return ACTION_STATUS_DISPLAY[status];
 }
 
 export const REVIEW_STATUS_OPTIONS: readonly ReviewStatus[] = [
