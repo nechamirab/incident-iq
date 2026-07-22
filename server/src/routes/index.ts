@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { AIProvider } from '../ai/providers/AIProvider.js';
 import type { IncidentRepository } from '../repositories/IncidentRepository.js';
-import { healthRouter } from './healthRoutes.js';
+import { createHealthRouter } from './healthRoutes.js';
 import { createIncidentRouter } from './incidentRoutes.js';
 
 /**
@@ -12,7 +12,7 @@ import { createIncidentRouter } from './incidentRoutes.js';
 export function createApiRouter(incidentRepository: IncidentRepository, aiProvider: AIProvider): Router {
   const router = Router();
 
-  router.use('/health', healthRouter);
+  router.use('/health', createHealthRouter(aiProvider));
   router.use('/incidents', createIncidentRouter(incidentRepository, aiProvider));
 
   return router;

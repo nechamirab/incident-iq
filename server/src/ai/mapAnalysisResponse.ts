@@ -19,6 +19,10 @@ export interface MapAnalysisResponseParams {
   promptVersion: string;
   durationMs: number;
   rawResponse: unknown;
+  /** What `AI_PROVIDER` was actually configured to; defaults to `providerName` (i.e. "not a fallback") when omitted. */
+  configuredProvider?: AiProviderName;
+  fallbackUsed?: boolean;
+  fallbackReason?: string | null;
 }
 
 /**
@@ -31,7 +35,18 @@ export interface MapAnalysisResponseParams {
  * reference against the incident's real evidence set.
  */
 export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): AnalysisRun {
-  const { incident, response, providerName, model, promptVersion, durationMs, rawResponse } = params;
+  const {
+    incident,
+    response,
+    providerName,
+    model,
+    promptVersion,
+    durationMs,
+    rawResponse,
+    configuredProvider = providerName,
+    fallbackUsed = false,
+    fallbackReason = null,
+  } = params;
 
   const knownEvidenceIds = new Set(incident.evidence.map((item) => item.id));
   const validationWarnings = findUnknownEvidenceReferences(response, knownEvidenceIds);
@@ -137,6 +152,9 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
     createdAt: new Date().toISOString(),
     inputHash: hashIncidentInput(incident),
     durationMs,
+    configuredProvider,
+    fallbackUsed,
+    fallbackReason,
     status: 'completed',
     summary: response.summary,
     timeline,

@@ -26,6 +26,20 @@ describe('generatePostmortem', () => {
     expect(provider.callCount).toBe(1);
   });
 
+  it('records the injected provider\'s own metadata on the postmortem, proving it uses the centralized provider rather than a hardcoded one', async () => {
+    const repository = buildRepository();
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    await repository.addAnalysisRun(incident.id, run);
+
+    const provider = new FakeAIProvider([JSON.stringify(buildValidPostmortemResponse())]);
+    const updated = await generatePostmortem(repository, provider, incident.id);
+
+    expect(updated.postmortem?.provider).toBe(provider.name);
+    expect(updated.postmortem?.configuredProvider).toBe(provider.configuredProvider);
+    expect(updated.postmortem?.fallbackUsed).toBe(provider.fallbackUsed);
+  });
+
   it('passes the latest run as completion context', async () => {
     const repository = buildRepository();
     const incident = sampleIncidents[0];

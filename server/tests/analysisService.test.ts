@@ -32,6 +32,21 @@ describe('analyzeIncident', () => {
     expect(updated?.analysisRuns[0]?.id).toBe(run.id);
   });
 
+  it('records the injected provider\'s own metadata on the run, proving it uses the centralized provider rather than a hardcoded one', async () => {
+    const repository = buildRepository();
+    const incident = sampleIncidents[0];
+    const provider = new FakeAIProvider([
+      JSON.stringify(buildValidAiResponse({}, incident.evidence[0].id)),
+    ]);
+
+    const run = await analyzeIncident(repository, provider, incident.id);
+
+    expect(run.provider).toBe(provider.name);
+    expect(run.configuredProvider).toBe(provider.configuredProvider);
+    expect(run.fallbackUsed).toBe(provider.fallbackUsed);
+    expect(run.fallbackReason).toBe(provider.fallbackReason);
+  });
+
   it('marks the incident "analyzing" while the request is in flight', async () => {
     const repository = buildRepository();
     const incident = sampleIncidents[0];
@@ -40,6 +55,10 @@ describe('analyzeIncident', () => {
     const probingProvider: AIProvider = {
       name: 'mock',
       model: 'probe',
+      configuredProvider: 'mock',
+      fallbackUsed: false,
+      fallbackReason: null,
+      providerVerified: null,
       async complete(_incident: Incident, _prompt: AIPrompt): Promise<string> {
         statusDuringCall = (await repository.findById(incident.id))?.status;
         return JSON.stringify(buildValidAiResponse({}, incident.evidence[0].id));

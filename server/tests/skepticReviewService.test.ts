@@ -29,6 +29,20 @@ describe('runSkepticReview', () => {
     expect(updated?.skepticReviews[0]?.id).toBe(review.id);
   });
 
+  it('records the injected provider\'s own metadata on the review, proving it uses the centralized provider rather than a hardcoded one', async () => {
+    const repository = buildRepository();
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    await repository.addAnalysisRun(incident.id, run);
+
+    const provider = new FakeAIProvider([JSON.stringify(buildValidSkepticReviewResponse())]);
+    const review = await runSkepticReview(repository, provider, incident.id);
+
+    expect(review.provider).toBe(provider.name);
+    expect(review.configuredProvider).toBe(provider.configuredProvider);
+    expect(review.fallbackUsed).toBe(provider.fallbackUsed);
+  });
+
   it('never modifies the original analysis run', async () => {
     const repository = buildRepository();
     const incident = sampleIncidents[0];

@@ -7,6 +7,10 @@ export interface MapPostmortemResponseParams {
   providerName: AiProviderName;
   model: string;
   promptVersion: string;
+  /** What `AI_PROVIDER` was actually configured to; defaults to `providerName` (i.e. "not a fallback") when omitted. */
+  configuredProvider?: AiProviderName;
+  fallbackUsed?: boolean;
+  fallbackReason?: string | null;
 }
 
 /**
@@ -17,7 +21,15 @@ export interface MapPostmortemResponseParams {
  * been edited by a human, even if a previous draft had been.
  */
 export function mapAiResponseToPostmortem(params: MapPostmortemResponseParams): Postmortem {
-  const { response, providerName, model, promptVersion } = params;
+  const {
+    response,
+    providerName,
+    model,
+    promptVersion,
+    configuredProvider = providerName,
+    fallbackUsed = false,
+    fallbackReason = null,
+  } = params;
 
   return {
     ...response,
@@ -26,5 +38,8 @@ export function mapAiResponseToPostmortem(params: MapPostmortemResponseParams): 
     promptVersion,
     generatedAt: new Date().toISOString(),
     lastEditedAt: null,
+    configuredProvider,
+    fallbackUsed,
+    fallbackReason,
   };
 }

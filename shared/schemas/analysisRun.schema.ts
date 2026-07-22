@@ -27,6 +27,7 @@ export const AnalysisRunSummarySchema = z.object({
 export const AnalysisRunSchema = z.object({
   id: IdSchema,
   incidentId: IdSchema,
+  /** The provider that actually produced this run -- `mock` even when standing in for a misconfigured `anthropic` setup as an explicit fallback. */
   provider: AiProviderNameSchema,
   model: z.string().min(1, 'model must not be empty'),
   promptVersion: z.string().min(1, 'promptVersion must not be empty'),
@@ -34,6 +35,17 @@ export const AnalysisRunSchema = z.object({
   inputHash: z.string().min(1, 'inputHash must not be empty'),
   durationMs: z.number().nonnegative(),
   status: AnalysisRunStatusSchema,
+  /**
+   * What `AI_PROVIDER` was actually configured to when this run was
+   * produced. Differs from `provider` only when `fallbackUsed` is `true`.
+   * Optional so every pre-existing fixture/test literal stays valid; always
+   * populated for a run produced through the real pipeline.
+   */
+  configuredProvider: AiProviderNameSchema.optional(),
+  /** Whether `provider` differs from `configuredProvider` because `ALLOW_MOCK_FALLBACK` permitted substituting the mock provider. */
+  fallbackUsed: z.boolean().optional(),
+  /** Human-readable explanation of why fallback occurred; `null`/absent when `fallbackUsed` is not `true`. */
+  fallbackReason: z.string().nullable().optional(),
   summary: AnalysisRunSummarySchema,
   timeline: z.array(TimelineEventSchema),
   facts: z.array(ReasoningItemSchema),
