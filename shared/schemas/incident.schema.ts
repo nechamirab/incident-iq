@@ -3,6 +3,7 @@ import { IdSchema, IsoDateTimeSchema } from './common.schema.js';
 import { EvidenceItemSchema } from './evidence.schema.js';
 import { AnalysisRunSchema } from './analysisRun.schema.js';
 import { SkepticReviewSchema } from './skepticReview.schema.js';
+import { PostmortemSchema } from './postmortem.schema.js';
 
 export const IncidentStatusSchema = z.enum([
   'draft',
@@ -28,9 +29,11 @@ export const ScenarioTypeSchema = z.enum([
 
 /**
  * The full incident aggregate: metadata plus its evidence, every analysis
- * run performed against it, and every skeptic review of those runs. This is
- * intentionally denormalized (nested, not referenced by id) since the mock
- * persistence layer stores and returns whole aggregates.
+ * run performed against it, every skeptic review of those runs, and its
+ * postmortem (a single evolving document, unlike the append-only arrays
+ * above -- see `PostmortemSchema`'s doc comment). This is intentionally
+ * denormalized (nested, not referenced by id) since the mock persistence
+ * layer stores and returns whole aggregates.
  */
 export const IncidentSchema = z.object({
   id: IdSchema,
@@ -48,6 +51,7 @@ export const IncidentSchema = z.object({
   evidence: z.array(EvidenceItemSchema),
   analysisRuns: z.array(AnalysisRunSchema),
   skepticReviews: z.array(SkepticReviewSchema),
+  postmortem: PostmortemSchema.nullable(),
 });
 
 /**

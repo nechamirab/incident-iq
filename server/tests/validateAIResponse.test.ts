@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { validateAIResponse } from '../src/ai/validators/validateAIResponse.js';
+import { validatePostmortemResponse } from '../src/ai/validators/validatePostmortemResponse.js';
 import { validateSkepticReviewResponse } from '../src/ai/validators/validateSkepticReviewResponse.js';
-import { buildValidAiResponse, buildValidSkepticReviewResponse } from './helpers/aiResponseFixtures.js';
+import {
+  buildValidAiResponse,
+  buildValidPostmortemResponse,
+  buildValidSkepticReviewResponse,
+} from './helpers/aiResponseFixtures.js';
 
 describe('validateAIResponse', () => {
   it('accepts a well-formed JSON response', () => {
@@ -76,6 +81,41 @@ describe('validateSkepticReviewResponse', () => {
     // them itself. Confirms extra fields don't break validation either.
     const result = validateSkepticReviewResponse(
       JSON.stringify({ ...response, challengedHypothesisId: 'ignored-if-present' }),
+    );
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('validatePostmortemResponse', () => {
+  it('accepts a well-formed JSON response', () => {
+    const result = validatePostmortemResponse(JSON.stringify(buildValidPostmortemResponse()));
+    expect(result.success).toBe(true);
+  });
+
+  it('strips a wrapping markdown ```json code fence', () => {
+    const text = '```json\n' + JSON.stringify(buildValidPostmortemResponse()) + '\n```';
+    const result = validatePostmortemResponse(text);
+    expect(result.success).toBe(true);
+  });
+
+  it('reports a failure for text that is not JSON at all', () => {
+    const result = validatePostmortemResponse('This is not JSON.');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.issues).toMatch(/not valid JSON/i);
+    }
+  });
+
+  it('reports a failure when a required field is missing', () => {
+    const { incidentSummary: _omitted, ...withoutSummary } = buildValidPostmortemResponse();
+    const result = validatePostmortemResponse(JSON.stringify(withoutSummary));
+    expect(result.success).toBe(false);
+  });
+
+  it('does not require provenance fields from the AI (the backend attaches them itself)', () => {
+    const response = buildValidPostmortemResponse();
+    const result = validatePostmortemResponse(
+      JSON.stringify({ ...response, provider: 'ignored-if-present' }),
     );
     expect(result.success).toBe(true);
   });

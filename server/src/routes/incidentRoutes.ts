@@ -8,12 +8,14 @@ import {
   listIncidents,
   listSampleIncidents,
 } from '../controllers/incidentController.js';
+import { editPostmortemHandler, generatePostmortemHandler } from '../controllers/postmortemController.js';
 import { triggerSkepticReview, updateSkepticReviewNotes } from '../controllers/skepticReviewController.js';
 import { reviewStatement } from '../controllers/statementController.js';
 import { incidentEvidenceUpload } from '../middleware/upload.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import type { IncidentRepository } from '../repositories/IncidentRepository.js';
 import { IncidentIntakeRequestSchema } from '../schemas/incidentIntake.schema.js';
+import { PostmortemEditRequestSchema } from '../schemas/postmortemEdit.schema.js';
 import { SkepticReviewNotesRequestSchema } from '../schemas/skepticReviewNotes.schema.js';
 import { StatementReviewRequestSchema } from '../schemas/statementReview.schema.js';
 
@@ -47,6 +49,12 @@ export function createIncidentRouter(repository: IncidentRepository, aiProvider:
     '/:incidentId/skeptic-reviews/:reviewId/notes',
     validateBody(SkepticReviewNotesRequestSchema),
     updateSkepticReviewNotes(repository),
+  );
+  router.post('/:incidentId/postmortem', generatePostmortemHandler(repository, aiProvider));
+  router.patch(
+    '/:incidentId/postmortem',
+    validateBody(PostmortemEditRequestSchema),
+    editPostmortemHandler(repository),
   );
 
   return router;

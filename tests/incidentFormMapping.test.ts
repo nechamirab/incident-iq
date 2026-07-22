@@ -22,6 +22,7 @@ function buildIncident(overrides: Partial<Incident> = {}): Incident {
     evidence: [],
     analysisRuns: [],
     skepticReviews: [],
+    postmortem: null,
     ...overrides,
   };
 }

@@ -5,6 +5,7 @@ import type {
   Incident,
   UpdateIncidentInput,
 } from '../../../shared/types/incident.js';
+import type { Postmortem } from '../../../shared/types/postmortem.js';
 import type { ReviewStatus } from '../../../shared/types/reasoning.js';
 import type { SkepticReview } from '../../../shared/types/skepticReview.js';
 
@@ -35,6 +36,17 @@ export interface IncidentRepository {
     reviewId: string,
     humanNotes: string,
   ): Promise<Incident | null>;
+
+  /**
+   * Replaces the incident's postmortem wholesale -- used both to set a
+   * freshly (re)generated AI draft and to persist a human's edits (the
+   * caller merges the edit into the existing document first). Unlike
+   * `addAnalysisRun`/`addSkepticReview`, this is not append-only: a
+   * postmortem is a single evolving document per incident.
+   *
+   * @returns The updated incident, or `null` if the incident could not be found.
+   */
+  setPostmortem(incidentId: string, postmortem: Postmortem): Promise<Incident | null>;
 
   /**
    * Updates the review status of one fact or assumption (a `ReasoningItem`

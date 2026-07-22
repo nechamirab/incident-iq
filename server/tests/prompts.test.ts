@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildIncidentAnalysisPrompt } from '../src/ai/prompts/incidentAnalysisV1.js';
+import { buildPostmortemPrompt } from '../src/ai/prompts/postmortemV1.js';
 import { buildRepairPrompt } from '../src/ai/prompts/repairInvalidJsonV1.js';
 import { buildSkepticReviewPrompt, findLeadingHypothesis } from '../src/ai/prompts/skepticReviewV1.js';
 import { sampleIncidents } from '../src/data/incidents/index.js';
@@ -92,5 +93,45 @@ describe('buildSkepticReviewPrompt', () => {
 
   it('instructs the model not to report the ignored-evidence list or hypothesis id itself', () => {
     expect(prompt.system.toLowerCase()).toContain('ignored');
+  });
+});
+
+describe('buildPostmortemPrompt', () => {
+  const incident = sampleIncidents[0];
+  const run = buildAnalysisRun(incident, incident.evidence[0].id);
+  const prompt = buildPostmortemPrompt(incident, run);
+
+  it('includes the incident status and resolvedAt so the model never invents a resolution', () => {
+    expect(prompt.user).toContain(`Status: ${incident.status}`);
+    expect(prompt.user.toLowerCase()).toContain('not yet resolved');
+    expect(prompt.system.toLowerCase()).toContain('resolution');
+  });
+
+  it("includes every hypothesis's title, confidence, and status", () => {
+    for (const hypothesis of run.hypotheses) {
+      expect(prompt.user).toContain(hypothesis.title);
+      expect(prompt.user).toContain(`confidence ${hypothesis.confidence}/100`);
+      expect(prompt.user).toContain(`status: ${hypothesis.status}`);
+    }
+  });
+
+  it('includes every evidence id so the model can ground its draft in it', () => {
+    for (const item of incident.evidence) {
+      expect(prompt.user).toContain(item.id);
+    }
+  });
+
+  it('instructs the model to hedge the likely cause unless a hypothesis is human-confirmed', () => {
+    expect(prompt.system.toLowerCase()).toContain('confirmed-by-human');
+    expect(prompt.system.toLowerCase()).toContain('hedged language');
+  });
+
+  it("includes the run's recommended actions and open questions", () => {
+    for (const action of run.recommendedActions) {
+      expect(prompt.user).toContain(action.title);
+    }
+    for (const question of run.openQuestions) {
+      expect(prompt.user).toContain(question);
+    }
   });
 });

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { MockAIProvider } from '../src/ai/providers/MockAIProvider.js';
 import { buildIncidentAnalysisPrompt } from '../src/ai/prompts/incidentAnalysisV1.js';
-import { buildSkepticReviewPrompt } from '../src/ai/prompts/skepticReviewV1.js';
+import { buildPostmortemPrompt } from '../src/ai/prompts/postmortemV1.js';
+import { buildSkepticReviewPrompt, findLeadingHypothesis } from '../src/ai/prompts/skepticReviewV1.js';
 import { validateAIResponse } from '../src/ai/validators/validateAIResponse.js';
+import { validatePostmortemResponse } from '../src/ai/validators/validatePostmortemResponse.js';
 import { validateSkepticReviewResponse } from '../src/ai/validators/validateSkepticReviewResponse.js';
 import { sampleIncidents } from '../src/data/incidents/index.js';
 import { buildAnalysisRun } from './helpers/analysisRunFixture.js';
@@ -40,6 +42,7 @@ function buildMinimalIncident(): Incident {
     ],
     analysisRuns: [],
     skepticReviews: [],
+    postmortem: null,
   };
 }
 
@@ -305,8 +308,8 @@ describe('MockAIProvider skeptic review', () => {
     const run = buildAnalysisRun(incident, incident.evidence[0].id);
     const prompt = buildSkepticReviewPrompt(incident, run);
 
-    const first = await provider.complete(incident, prompt, { analysisRun: run });
-    const second = await provider.complete(incident, prompt, { analysisRun: run });
+    const first = await provider.complete(incident, prompt, { kind: 'skeptic-review', analysisRun: run });
+    const second = await provider.complete(incident, prompt, { kind: 'skeptic-review', analysisRun: run });
     expect(first).toBe(second);
   });
 
@@ -315,7 +318,7 @@ describe('MockAIProvider skeptic review', () => {
     async (_title, incident) => {
       const run = buildAnalysisRun(incident, incident.evidence[0].id);
       const prompt = buildSkepticReviewPrompt(incident, run);
-      const rawText = await provider.complete(incident, prompt, { analysisRun: run });
+      const rawText = await provider.complete(incident, prompt, { kind: 'skeptic-review', analysisRun: run });
       const result = validateSkepticReviewResponse(rawText);
       expect(result.success, result.success ? undefined : result.issues).toBe(true);
     },
@@ -327,6 +330,7 @@ describe('MockAIProvider skeptic review', () => {
     const leading = [...run.hypotheses].sort((a, b) => b.confidence - a.confidence)[0];
 
     const rawText = await provider.complete(incident, buildSkepticReviewPrompt(incident, run), {
+      kind: 'skeptic-review',
       analysisRun: run,
     });
     const result = validateSkepticReviewResponse(rawText);
@@ -343,6 +347,7 @@ describe('MockAIProvider skeptic review', () => {
     const nonLeading = [...run.hypotheses].sort((a, b) => b.confidence - a.confidence).slice(1);
 
     const rawText = await provider.complete(incident, buildSkepticReviewPrompt(incident, run), {
+      kind: 'skeptic-review',
       analysisRun: run,
     });
     const result = validateSkepticReviewResponse(rawText);
@@ -392,6 +397,7 @@ describe('MockAIProvider skeptic review', () => {
     });
 
     const rawText = await provider.complete(incident, buildSkepticReviewPrompt(incident, run), {
+      kind: 'skeptic-review',
       analysisRun: run,
     });
     const result = validateSkepticReviewResponse(rawText);
@@ -423,6 +429,7 @@ describe('MockAIProvider skeptic review', () => {
     });
 
     const rawText = await provider.complete(incident, buildSkepticReviewPrompt(incident, run), {
+      kind: 'skeptic-review',
       analysisRun: run,
     });
     const result = validateSkepticReviewResponse(rawText);
@@ -434,6 +441,196 @@ describe('MockAIProvider skeptic review', () => {
   });
 
   it('falls back to producing the main analysis when no analysisRun context is given', async () => {
+    const incident = sampleIncidents[0];
+    const rawText = await provider.complete(incident, buildIncidentAnalysisPrompt(incident));
+    const result = validateAIResponse(rawText);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('MockAIProvider postmortem', () => {
+  const provider = new MockAIProvider();
+
+  it('is deterministic: the same incident and run produce the same output', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    const prompt = buildPostmortemPrompt(incident, run);
+
+    const first = await provider.complete(incident, prompt, { kind: 'postmortem', analysisRun: run });
+    const second = await provider.complete(incident, prompt, { kind: 'postmortem', analysisRun: run });
+    expect(first).toBe(second);
+  });
+
+  it.each(sampleIncidents.map((incident) => [incident.title, incident] as const))(
+    'produces schema-valid output for a real analysis run of sample incident: %s',
+    async (_title, incident) => {
+      const run = buildAnalysisRun(incident, incident.evidence[0].id);
+      const prompt = buildPostmortemPrompt(incident, run);
+      const rawText = await provider.complete(incident, prompt, { kind: 'postmortem', analysisRun: run });
+      const result = validatePostmortemResponse(rawText);
+      expect(result.success, result.success ? undefined : result.issues).toBe(true);
+    },
+  );
+
+  it('names the leading hypothesis in the likely cause, using hedged language by default', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    const leading = findLeadingHypothesis(run);
+
+    const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, run), {
+      kind: 'postmortem',
+      analysisRun: run,
+    });
+    const result = validatePostmortemResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.likelyCause).toContain(leading.title);
+      expect(result.data.likelyCause).toContain(String(leading.confidence));
+      expect(result.data.likelyCause.toLowerCase()).toContain('the available evidence suggests');
+    }
+  });
+
+  it('states the confirmed cause without hedging when the leading hypothesis is human-confirmed', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    const confirmedRun: AnalysisRun = {
+      ...run,
+      hypotheses: run.hypotheses.map((hypothesis, index) =>
+        index === 0 ? { ...hypothesis, status: 'confirmed-by-human' as const } : hypothesis,
+      ),
+    };
+
+    const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, confirmedRun), {
+      kind: 'postmortem',
+      analysisRun: confirmedRun,
+    });
+    const result = validatePostmortemResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.likelyCause).toContain('confirmed cause');
+      expect(result.data.likelyCause).toContain('human reviewer');
+    }
+  });
+
+  it('lists every hypothesis investigated, not only the leading one', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+
+    const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, run), {
+      kind: 'postmortem',
+      analysisRun: run,
+    });
+    const result = validatePostmortemResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.hypothesesInvestigated).toHaveLength(run.hypotheses.length);
+      for (const hypothesis of run.hypotheses) {
+        expect(result.data.hypothesesInvestigated.some((text) => text.includes(hypothesis.title))).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it('states the incident is not yet resolved when its status is not "resolved"', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    expect(incident.status).not.toBe('resolved');
+
+    const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, run), {
+      kind: 'postmortem',
+      analysisRun: run,
+    });
+    const result = validatePostmortemResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.resolution.toLowerCase()).toContain('not yet been marked resolved');
+    }
+  });
+
+  it('states the resolvedAt timestamp when the incident is resolved', async () => {
+    const incident: Incident = {
+      ...sampleIncidents[0],
+      status: 'resolved',
+      resolvedAt: '2026-06-14T16:00:00Z',
+    };
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+
+    const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, run), {
+      kind: 'postmortem',
+      analysisRun: run,
+    });
+    const result = validatePostmortemResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.resolution).toContain('2026-06-14T16:00:00Z');
+    }
+  });
+
+  it('derives lessons learned from the reasoning risks this analysis flagged about itself', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildBareRun({
+      incidentId: incident.id,
+      hypotheses: buildAnalysisRun(incident, incident.evidence[0].id).hypotheses,
+      reasoningRisks: [
+        {
+          id: 'bias-1',
+          biasType: 'automation-bias',
+          title: 'Mock analysis has not been reviewed',
+          description: 'x',
+          detectedIn: 'overall-analysis',
+          evidenceIds: [],
+          riskLevel: 'medium',
+          mitigation: 'Have a human review any AI-generated hypothesis before acting on it.',
+        },
+      ],
+    });
+
+    const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, run), {
+      kind: 'postmortem',
+      analysisRun: run,
+    });
+    const result = validatePostmortemResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lessonsLearned).toHaveLength(1);
+      expect(result.data.lessonsLearned[0]).toContain('Have a human review any AI-generated hypothesis');
+    }
+  });
+
+  it('falls back to a generic note when no reasoning risks were flagged', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    expect(run.reasoningRisks).toHaveLength(0);
+
+    const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, run), {
+      kind: 'postmortem',
+      analysisRun: run,
+    });
+    const result = validatePostmortemResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lessonsLearned).toHaveLength(1);
+      expect(result.data.lessonsLearned[0]).toMatch(/no reasoning risks/i);
+    }
+  });
+
+  it('draws follow-up items from the run\'s open questions', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+
+    const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, run), {
+      kind: 'postmortem',
+      analysisRun: run,
+    });
+    const result = validatePostmortemResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.followUpItems).toEqual(run.openQuestions);
+    }
+  });
+
+  it('falls back to producing the main analysis when no context is given', async () => {
     const incident = sampleIncidents[0];
     const rawText = await provider.complete(incident, buildIncidentAnalysisPrompt(incident));
     const result = validateAIResponse(rawText);

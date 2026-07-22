@@ -9,7 +9,7 @@ import { FactsAssumptionsSection } from '../../components/workspace/FactsAssumpt
 import { HypothesesSection } from '../../components/workspace/HypothesesSection';
 import { OverviewSection } from '../../components/workspace/OverviewSection';
 import { PageBreadcrumbs } from '../../components/layout/PageBreadcrumbs';
-import { PlaceholderSection } from '../../components/workspace/PlaceholderSection';
+import { PostmortemSection } from '../../components/workspace/PostmortemSection';
 import { ReasoningRisksSection } from '../../components/workspace/ReasoningRisksSection';
 import { RecommendedActionsSection } from '../../components/workspace/RecommendedActionsSection';
 import { TimelineSection } from '../../components/workspace/TimelineSection';
@@ -20,10 +20,9 @@ import { useWorkspaceStore, type WorkspaceSection } from '../../store/workspaceS
 
 /**
  * The Incident Workspace: fetches the incident and renders a tabbed
- * layout. Overview, Evidence, Timeline, Hypotheses, Facts & Assumptions,
- * Reasoning Risks, Recommended Actions, and AI Review are fully
- * implemented; the remaining sections show a placeholder naming the stage
- * that introduces them, so the intended navigation is visible end to end.
+ * layout covering every stage of the investigation lifecycle -- Overview,
+ * Evidence, Timeline, Hypotheses, Facts & Assumptions, Reasoning Risks,
+ * Recommended Actions, AI Review, and Postmortem.
  */
 export function IncidentWorkspacePage(): ReactNode {
   const { incidentId } = useParams<{ incidentId: string }>();
@@ -122,12 +121,7 @@ export function IncidentWorkspacePage(): ReactNode {
         {activeSection === 'reasoning-risks' && <ReasoningRisksSection incident={incident} />}
         {activeSection === 'actions' && <RecommendedActionsSection incident={incident} />}
         {activeSection === 'ai-review' && <AIReviewSection incident={incident} />}
-        {(() => {
-          const section = WORKSPACE_SECTIONS.find((candidate) => candidate.id === activeSection);
-          return section?.arrivingInStage ? (
-            <PlaceholderSection label={section.label} arrivingInStage={section.arrivingInStage} />
-          ) : null;
-        })()}
+        {activeSection === 'postmortem' && <PostmortemSection incident={incident} />}
       </Box>
     </Stack>
   );

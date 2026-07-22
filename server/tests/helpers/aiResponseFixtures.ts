@@ -1,4 +1,5 @@
 import type { AiAnalysisResponse } from '../../src/ai/schemas/aiAnalysisResponse.schema.js';
+import type { AiPostmortemResponse } from '../../src/ai/schemas/postmortemResponse.schema.js';
 import type { AiSkepticReviewResponse } from '../../src/ai/schemas/skepticReviewResponse.schema.js';
 
 /**
@@ -97,6 +98,30 @@ export function buildValidSkepticReviewResponse(
     falsificationTest: 'If the pattern also appears during a known-healthy period, this is falsified.',
     recommendedTests: ['Independently verify the supporting evidence.'],
     overallAssessment: 'This does not confirm or reject the leading hypothesis.',
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a minimal, schema-valid {@link AiPostmortemResponse}. Tests
+ * override only the fields they care about via `overrides`.
+ */
+export function buildValidPostmortemResponse(
+  overrides: Partial<AiPostmortemResponse> = {},
+): AiPostmortemResponse {
+  return {
+    incidentSummary: 'Checkout failures following a deployment.',
+    impact: 'Customers could not complete checkout for roughly 40 minutes.',
+    detection: 'Detected via a monitoring alert.',
+    timeline: '3 events were reconstructed.',
+    contributingFactors: ['Reduced DB connection pool size.'],
+    hypothesesInvestigated: ['Connection pool exhaustion -- confidence 50/100, status: proposed.'],
+    likelyCause: 'The available evidence suggests connection pool exhaustion.',
+    uncertaintyStatement: 'This has not been independently confirmed.',
+    resolution: 'This incident has not yet been marked resolved.',
+    correctiveActions: ['Add a load test gate for pool-affecting config changes.'],
+    lessonsLearned: ['Config changes affecting infrastructure need the same review as code.'],
+    followUpItems: ['Has this been reviewed by a human?'],
     ...overrides,
   };
 }

@@ -5,6 +5,7 @@ import type {
   Incident,
   UpdateIncidentInput,
 } from '../../../shared/types/incident.js';
+import type { Postmortem } from '../../../shared/types/postmortem.js';
 import type { ReviewStatus } from '../../../shared/types/reasoning.js';
 import type { SkepticReview } from '../../../shared/types/skepticReview.js';
 import { createId } from '../utils/id.js';
@@ -53,6 +54,7 @@ export class InMemoryIncidentRepository implements IncidentRepository {
       evidence: [],
       analysisRuns: [],
       skepticReviews: [],
+      postmortem: null,
     };
 
     this.incidentsById.set(incident.id, incident);
@@ -153,6 +155,22 @@ export class InMemoryIncidentRepository implements IncidentRepository {
     const updated: Incident = {
       ...existing,
       skepticReviews,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.incidentsById.set(incidentId, updated);
+    return structuredClone(updated);
+  }
+
+  async setPostmortem(incidentId: string, postmortem: Postmortem): Promise<Incident | null> {
+    const existing = this.incidentsById.get(incidentId);
+    if (!existing) {
+      return null;
+    }
+
+    const updated: Incident = {
+      ...existing,
+      postmortem,
       updatedAt: new Date().toISOString(),
     };
 

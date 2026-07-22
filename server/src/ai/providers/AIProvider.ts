@@ -14,11 +14,15 @@ export interface AIPrompt {
  * it back out of prompt text. A real provider ignores this entirely -- it
  * only sends `prompt` to the model, which already embeds everything a real
  * model needs in natural language.
+ *
+ * `kind` discriminates which non-default request this is (omitted entirely
+ * for the main incident-analysis request); `analysisRun` is the run the
+ * request is about in both cases -- the one being critiqued for a skeptic
+ * review, or the one being summarized for a postmortem draft.
  */
-export interface AICompletionContext {
-  /** The analysis run being critiqued, for a skeptic-review request. */
-  analysisRun?: AnalysisRun;
-}
+export type AICompletionContext =
+  | { kind: 'skeptic-review'; analysisRun: AnalysisRun }
+  | { kind: 'postmortem'; analysisRun: AnalysisRun };
 
 /**
  * Provider-agnostic contract for anything that can produce an incident

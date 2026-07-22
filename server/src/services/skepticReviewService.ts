@@ -31,7 +31,7 @@ async function runSkepticReviewWithRetry(
   const result = await runProviderWithRetry({
     incident,
     provider,
-    context: { analysisRun: run },
+    context: { kind: 'skeptic-review', analysisRun: run },
     buildPrompt: () => buildSkepticReviewPrompt(incident, run),
     validate: validateSkepticReviewResponse,
     promptVersion: SKEPTIC_REVIEW_PROMPT_VERSION,

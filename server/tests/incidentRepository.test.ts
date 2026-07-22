@@ -4,6 +4,7 @@ import { sampleIncidents } from '../src/data/incidents/index.js';
 import type { CreateIncidentInput } from '../../shared/types/incident.js';
 import type { AnalysisRun } from '../../shared/types/analysisRun.js';
 import type { EvidenceItem } from '../../shared/types/evidence.js';
+import type { Postmortem } from '../../shared/types/postmortem.js';
 import type { SkepticReview } from '../../shared/types/skepticReview.js';
 
 function buildCreateInput(overrides: Partial<CreateIncidentInput> = {}): CreateIncidentInput {
@@ -259,6 +260,68 @@ describe('InMemoryIncidentRepository', () => {
       try {
         vi.advanceTimersByTime(1000);
         const updated = await repository.updateSkepticReviewNotes(created.id, 'review-1', 'x');
+        expect(updated?.updatedAt).not.toBe(created.updatedAt);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('setPostmortem', () => {
+    function buildPostmortem(overrides: Partial<Postmortem> = {}): Postmortem {
+      return {
+        incidentSummary: 'A summary.',
+        impact: 'Some impact.',
+        detection: 'Detected somehow.',
+        timeline: 'A short timeline.',
+        contributingFactors: [],
+        hypothesesInvestigated: [],
+        likelyCause: 'A likely cause.',
+        uncertaintyStatement: 'Not confirmed.',
+        resolution: 'Not yet resolved.',
+        correctiveActions: [],
+        lessonsLearned: [],
+        followUpItems: [],
+        provider: 'mock',
+        model: 'mock-deterministic-v1',
+        promptVersion: 'postmortem-v1',
+        generatedAt: '2026-07-01T00:20:00Z',
+        lastEditedAt: null,
+        ...overrides,
+      };
+    }
+
+    it('sets the postmortem on an incident that had none', async () => {
+      const created = await repository.create(buildCreateInput());
+      const updated = await repository.setPostmortem(created.id, buildPostmortem());
+
+      expect(updated?.postmortem?.incidentSummary).toBe('A summary.');
+    });
+
+    it('fully replaces an existing postmortem, not merges it', async () => {
+      const created = await repository.create(buildCreateInput());
+      await repository.setPostmortem(created.id, buildPostmortem({ incidentSummary: 'First draft.' }));
+      const updated = await repository.setPostmortem(
+        created.id,
+        buildPostmortem({ incidentSummary: 'Second draft.', impact: 'New impact.' }),
+      );
+
+      expect(updated?.postmortem?.incidentSummary).toBe('Second draft.');
+      expect(updated?.postmortem?.impact).toBe('New impact.');
+    });
+
+    it('returns null for a missing incident', async () => {
+      const updated = await repository.setPostmortem('does-not-exist', buildPostmortem());
+      expect(updated).toBeNull();
+    });
+
+    it('bumps updatedAt on success', async () => {
+      const created = await repository.create(buildCreateInput());
+
+      vi.useFakeTimers();
+      try {
+        vi.advanceTimersByTime(1000);
+        const updated = await repository.setPostmortem(created.id, buildPostmortem());
         expect(updated?.updatedAt).not.toBe(created.updatedAt);
       } finally {
         vi.useRealTimers();

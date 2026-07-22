@@ -3,25 +3,17 @@ import type { WorkspaceSection } from '../store/workspaceStore';
 export interface WorkspaceSectionConfig {
   id: WorkspaceSection;
   label: string;
-  /** `null` for sections implemented in this stage. */
-  arrivingInStage: number | null;
 }
 
-/**
- * The full intended set of Incident Workspace tabs, in display order.
- * Sections not yet implemented still appear (per the project's "professional
- * workspace layout with clear navigation" requirement) but render a
- * placeholder naming the stage that introduces them, rather than being
- * hidden entirely.
- */
+/** The full set of Incident Workspace tabs, in display order. */
 export const WORKSPACE_SECTIONS: readonly WorkspaceSectionConfig[] = [
-  { id: 'overview', label: 'Overview', arrivingInStage: null },
-  { id: 'evidence', label: 'Evidence', arrivingInStage: null },
-  { id: 'timeline', label: 'Timeline', arrivingInStage: null },
-  { id: 'hypotheses', label: 'Hypotheses', arrivingInStage: null },
-  { id: 'facts-assumptions', label: 'Facts & Assumptions', arrivingInStage: null },
-  { id: 'reasoning-risks', label: 'Reasoning Risks', arrivingInStage: null },
-  { id: 'actions', label: 'Recommended Actions', arrivingInStage: null },
-  { id: 'ai-review', label: 'AI Review', arrivingInStage: null },
-  { id: 'postmortem', label: 'Postmortem', arrivingInStage: 10 },
+  { id: 'overview', label: 'Overview' },
+  { id: 'evidence', label: 'Evidence' },
+  { id: 'timeline', label: 'Timeline' },
+  { id: 'hypotheses', label: 'Hypotheses' },
+  { id: 'facts-assumptions', label: 'Facts & Assumptions' },
+  { id: 'reasoning-risks', label: 'Reasoning Risks' },
+  { id: 'actions', label: 'Recommended Actions' },
+  { id: 'ai-review', label: 'AI Review' },
+  { id: 'postmortem', label: 'Postmortem' },
 ] as const;

@@ -8,19 +8,29 @@ The system is designed to always separate **facts** (directly supported by evide
 **assumptions** (plausible but unproven), **hypotheses** (explanations requiring testing), and
 **actions** (concrete next steps). It never presents a hypothesis as a confirmed root cause.
 
-> **Status:** Stage 9 — Incident Dashboard and Navigation. Stage 1 established the frontend/backend
-> skeleton; Stage 2 added the domain model and mock data; Stage 3 made incident creation and file
-> upload real; Stage 4 built the AI analysis pipeline; Stage 5 made the Incident Workspace real
-> (Overview, Evidence, Facts & Assumptions); Stage 6 added Timeline and Hypotheses; Stage 7 added
-> Reasoning Risks and Recommended Actions; Stage 8 added the skeptic-review AI Review tab. Stage 9
-> replaces the Dashboard's placeholder ("Incident metrics and listings are introduced in a later
-> development stage") with a real, working incident list: every incident (bundled samples plus any
-> the user created), sorted most-recently-updated first, searchable by title/service/id, filterable
-> by status and severity, with a status-count summary row and a table whose every row links straight
-> to that incident's workspace. It also adds explicit breadcrumb navigation (`Dashboard / <page>`)
-> to the Incident Workspace and New Incident pages, via a shared `PageBreadcrumbs` component, so
-> there's always a clear way back that doesn't depend on the browser's back button. Postmortem
-> remains a named placeholder for Stage 10.
+> **Status:** Stage 10 — Postmortem Export and Final Polish. All ten stages are now complete. Stage 1
+> established the frontend/backend skeleton; Stage 2 added the domain model and mock data; Stage 3
+> made incident creation and file upload real; Stage 4 built the AI analysis pipeline; Stage 5 made
+> the Incident Workspace real (Overview, Evidence, Facts & Assumptions); Stage 6 added Timeline and
+> Hypotheses; Stage 7 added Reasoning Risks and Recommended Actions; Stage 8 added the
+> skeptic-review AI Review tab; Stage 9 made the Dashboard a real incident list with breadcrumb
+> navigation throughout. Stage 10 fills in the last workspace tab -- **Postmortem** -- and closes out
+> the project:
+>
+> - An AI-drafted postmortem (a third AI pass, alongside the main analysis and skeptic review) that
+>   every field of stays human-editable in place after drafting -- a deliberately different design
+>   from the skeptic review's AI-authored-plus-notes model, since a postmortem is meant to become
+>   the team's own document. "Likely cause" language is used unless a hypothesis is explicitly
+>   `confirmed-by-human`.
+> - Full editing (`PATCH /api/incidents/:incidentId/postmortem`) and regeneration (`POST`, which
+>   discards prior edits -- the UI warns before this) of the draft.
+> - Export as a standalone Markdown document, either copied to the clipboard or downloaded as a
+>   `.md` file, independent of the IncidentIQ app itself.
+> - Final polish: route-level code splitting (the three substantial pages now load on demand rather
+>   than in the initial bundle), a top-level error boundary so an unexpected render error shows a
+>   friendly fallback instead of a blank screen, and removal of the now-dead
+>   `PlaceholderSection`/`arrivingInStage` placeholder machinery now that every workspace tab is
+>   implemented.
 
 ## Architecture
 
@@ -37,7 +47,8 @@ Every domain entity is defined once as a Zod schema in `shared/schemas/`, with i
 type inferred from that schema (`z.infer<...>`) and re-exported from `shared/types/` for
 ergonomic type-only imports. The model covers the full investigation lifecycle:
 
-- **Incident** — metadata plus nested `evidence` and `analysisRuns`.
+- **Incident** — metadata plus nested `evidence`, `analysisRuns`, `skepticReviews`, and a single
+  `postmortem` (nullable until one is drafted).
 - **EvidenceItem** — a single, individually-referenceable piece of evidence.
 - **ReasoningItem** — a categorized fact or assumption, always evidence-linked.
 - **TimelineEvent** — a reconstructed event with an explicit timestamp-confidence label.
@@ -45,7 +56,11 @@ ergonomic type-only imports. The model covers the full investigation lifecycle:
 - **BiasFinding** — a detected reasoning risk (confirmation bias, anchoring, etc.).
 - **RecommendedAction** — a concrete, evidence-linked next step.
 - **AnalysisRun** — the full, validated result of one AI (or mock) analysis pass.
-- **Postmortem** — a human-reviewed draft report.
+- **SkepticReview** — a critical second pass challenging an analysis run's leading hypothesis;
+  append-only like `AnalysisRun`, never overwriting the run it reviews.
+- **Postmortem** — a human-reviewed draft report. Unlike the append-only entities above, this is a
+  *single evolving document* per incident: every field stays editable in place after the AI drafts
+  it, rather than being paired with a separate human-notes field (see its schema doc comment).
 
 The AI never sets a hypothesis to `confirmed-by-human` — only an explicit human review action can.
 
@@ -138,6 +153,40 @@ without duplicating it:
   reviewer record their own take on a skeptic review, stored separately from (and never
   overwriting) its AI-generated content.
 
+### Postmortem
+
+A third AI pass (`server/src/services/postmortemService.ts`), reusing the same
+`runProviderWithRetry` pipeline as the main analysis and skeptic review, but structurally different
+from both: a postmortem is a single evolving document per incident, not an append-only record, and
+every field the AI drafts stays directly human-editable afterward rather than being paired with a
+separate notes field.
+
+- **`postmortem-v1`** (`ai/prompts/postmortemV1.ts`) — drafts a full postmortem from the incident
+  and its latest analysis run. Explicitly instructed to use hedged "likely cause" language unless a
+  hypothesis is `confirmed-by-human`; to list every hypothesis investigated, not only the leading
+  one; to never invent a resolution for an incident that isn't `resolved`; and to ground
+  `correctiveActions`/`lessonsLearned`/`followUpItems` in the run's own recommended actions,
+  reasoning risks, and open questions rather than generic advice.
+- **AI-facing schema** (`ai/schemas/postmortemResponse.schema.ts`) is derived from the persisted
+  `PostmortemSchema` via `.omit(...)`, dropping only its five system-managed provenance fields
+  (`provider`/`model`/`promptVersion`/`generatedAt`/`lastEditedAt`) -- the same "AI drafts content,
+  the backend attaches provenance" principle used for the main analysis and skeptic review, applied
+  through schema composition instead of a hand-duplicated field list.
+- **`MockAIProvider`**'s postmortem draft is fully deterministic: `detection` names the dominant
+  evidence source type, `contributingFactors` includes every hypothesis within 20 confidence points
+  of the leading one, `resolution` explicitly states the incident is unresolved unless
+  `resolvedAt` is set, and `lessonsLearned`/`correctiveActions`/`followUpItems` are drawn directly
+  from the run's own reasoning risks, recommended actions, and open questions.
+- **Generate vs. edit** — `POST /api/incidents/:incidentId/postmortem` (re)generates a draft,
+  *fully replacing* any existing one, including prior human edits (the UI's "Regenerate" button
+  says so). `PATCH /api/incidents/:incidentId/postmortem` merges a human's edits into the existing
+  draft and bumps `lastEditedAt` only -- `generatedAt` and the rest of the draft's provenance are
+  untouched by editing.
+- **Export** — `buildPostmortemMarkdown` (pure, unit-tested) renders the current draft as a
+  standalone Markdown document (incident metadata, every field under its own heading, a provenance
+  footer), which the Postmortem tab offers as a clipboard copy or a `.md` file download -- neither
+  requires the backend.
+
 ### Dashboard and navigation
 
 `/` (`DashboardPage`) lists every incident -- bundled samples plus any the user created -- most
@@ -168,11 +217,8 @@ link.
 
 ### Incident Workspace
 
-`/incidents/:incidentId` (`IncidentWorkspacePage`) is a tabbed layout listing all nine sections
-the finished app will have (`src/constants/workspaceSections.ts`); the one section not yet built
-(Postmortem) renders a named placeholder ("Postmortem is not implemented yet... Stage 10") rather
-than being hidden, so the intended navigation is visible end to end. Eight sections are fully
-implemented:
+`/incidents/:incidentId` (`IncidentWorkspacePage`) is a tabbed layout with all nine sections
+(`src/constants/workspaceSections.ts`) fully implemented:
 
 - **Overview** — the incident description, plus the *latest* analysis run's summary, impact,
   affected components, uncertainty statement, validation warnings, and provenance
@@ -221,6 +267,12 @@ implemented:
   never cited (as clickable chips, like everywhere else), confirmation-bias assessment,
   falsification test, further recommended tests, overall assessment, its own provenance, and an
   editable notes field a human reviewer can save independently of the AI-generated content.
+- **Postmortem** — an empty state prompting AI analysis first, then "Generate postmortem draft"
+  once analysis exists. Once a draft is generated, every field is a real editable control (plain
+  text fields for the seven prose fields, an add/edit/remove list editor for the five array
+  fields), a "Save changes" button enabled only while dirty, "Regenerate draft (discards edits)"
+  clearly labeled as destructive, draft provenance chips, and export actions ("Copy" and
+  "Download as Markdown") that work from the current in-browser draft, not a server round-trip.
 
 Every evidence id shown anywhere in Timeline, Hypotheses, Reasoning Risks, Recommended Actions, or
 AI Review (`EvidenceReferenceChips`) is a clickable chip that jumps to the Evidence tab with that
@@ -286,26 +338,30 @@ the incident and its full evidence list in one request.
 ```
 incident-iq/
   src/                     # Frontend application
-    app/                   # App root, router, providers
-    components/layout/     # Shared layout (header, shell, PageBreadcrumbs)
+    app/                   # App root, lazy-loaded route table, providers, ErrorBoundary
+    components/layout/     # Shared layout (header, shell, PageBreadcrumbs, ErrorBoundary)
     components/dashboard/  # IncidentStatusSummary, IncidentFilterBar, IncidentListTable
     components/incidents/  # NewIncidentForm, LoadSampleIncidentButton, IncidentCreatedPanel
     components/evidence/   # EvidenceCard, FileUploadZone (drag-drop, preview, remove)
     components/workspace/  # WorkspaceHeader, Overview/Evidence/Timeline/Hypotheses/FactsAssumptions/
-                            # ReasoningRisks/RecommendedActions/AIReview sections, HypothesisCard,
-                            # ConfidenceIndicator, EvidenceReferenceChips, ReviewStatusControl,
-                            # RunComparisonTable, SkepticReviewCard, PlaceholderSection
+                            # ReasoningRisks/RecommendedActions/AIReview/Postmortem sections,
+                            # HypothesisCard, ConfidenceIndicator, EvidenceReferenceChips,
+                            # ReviewStatusControl, RunComparisonTable, SkepticReviewCard,
+                            # EditableStringList
     components/common/     # ControlledTextField, CopyButton
     pages/                 # Route-level page components
     hooks/                 # React hooks (useIncident(s), useCreateIncident, useAnalyzeIncident,
-                            # useReviewStatement, useRunSkepticReview, useUpdateSkepticReviewNotes, ...)
-    services/              # Typed API clients (incidentService, analysisService, ...)
+                            # useReviewStatement, useRunSkepticReview, useUpdateSkepticReviewNotes,
+                            # useGeneratePostmortem, useEditPostmortem, ...)
+    services/              # Typed API clients (incidentService, analysisService,
+                            # postmortemService, ...)
     store/                 # Zustand: workspace UI state only (active tab, evidence search/filter)
     schemas/               # Frontend-only Zod schemas (New Incident form)
     constants/              # Routes, query keys, workspace section config
     theme/                 # MUI theme tokens
     utils/                 # File validation/size formatting, evidence/incident filtering/sorting/
-                            # summarizing, reference-indexing, status-display mapping
+                            # summarizing, reference-indexing, status-display mapping,
+                            # buildPostmortemMarkdown
   server/                  # Backend application
     src/
       app.ts               # Express app factory (dependency-injectable repository + AI provider)
@@ -315,19 +371,22 @@ incident-iq/
       routes/               # Route definitions
       middleware/           # Error handling, 404 handling, Multer upload, Zod body validation
       parsers/              # Text/JSON/CSV evidence parsers + extension dispatcher
-      services/             # evidenceService, incidentService, analysisService, skepticReviewService
+      services/             # evidenceService, incidentService, analysisService,
+                            # skepticReviewService, postmortemService
       schemas/              # Server-only request schemas (incident intake, statement review,
-                            # skeptic review notes)
+                            # skeptic review notes, postmortem edit)
       repositories/         # IncidentRepository interface + in-memory implementation
       data/incidents/       # Bundled synthetic sample incidents
       ai/
         providers/           # AIProvider interface, MockAIProvider, AnthropicAIProvider, factory
         prompts/              # Versioned prompts (incident-analysis-v1, skeptic-review-v1,
-                              # repair-invalid-json-v1)
-        schemas/              # AI-facing structured-output Zod schemas (analysis, skeptic review)
+                              # postmortem-v1, repair-invalid-json-v1)
+        schemas/              # AI-facing structured-output Zod schemas (analysis, skeptic
+                              # review, postmortem)
         validators/           # JSON/schema validation, evidence-reference and unsupported-claim checks
         mapAnalysisResponse.ts       # Validated AI response -> persisted AnalysisRun
         mapSkepticReviewResponse.ts  # Validated AI response -> persisted SkepticReview
+        mapPostmortemResponse.ts     # Validated AI response -> persisted Postmortem
         runProviderWithRetry.ts      # Shared validate-then-retry-once orchestration
       utils/                # ApiError, id generation, text normalization, input hashing
     tests/                 # Vitest + Supertest (schemas, parsers, services, AI pipeline, API routes)
@@ -406,11 +465,13 @@ shows the summary/impact/uncertainty statement, Evidence is searchable/filterabl
 chronological events with confidence-labeled timestamps, Hypotheses shows every candidate
 explanation ranked by confidence with supporting/contradicting evidence, Facts & Assumptions lets
 you mark any statement's review status, Reasoning Risks shows the biases this specific analysis
-flagged about itself, Recommended Actions shows concrete next steps ordered by priority, and AI
-Review lets you run a skeptic review that challenges the leading hypothesis and record your own
-notes on it. Clicking any evidence id chip anywhere jumps straight to that evidence item. Click
-"Dashboard" in the breadcrumb (or the header nav) to go back — the incident you just created now
-appears at the top of the list, and the status summary/filters reflect it immediately.
+flagged about itself, Recommended Actions shows concrete next steps ordered by priority, AI Review
+lets you run a skeptic review that challenges the leading hypothesis and record your own notes on
+it, and Postmortem lets you generate a draft, edit any field in place, and export it as Markdown
+(copy to clipboard or download). Clicking any evidence id chip anywhere jumps straight to that
+evidence item. Click "Dashboard" in the breadcrumb (or the header nav) to go back — the incident
+you just created now appears at the top of the list, and the status summary/filters reflect it
+immediately.
 
 ## Building
 
@@ -436,35 +497,50 @@ npm run test:client   # frontend only (Vitest, node environment)
 npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-365 tests total:
+427 tests total:
 
-- **Backend** (`server/tests/`, 260 tests) — unchanged this stage; Stage 9 touched only the
-  frontend.
-- **Frontend** (`tests/`, 105 tests) — everything from prior stages, plus this stage's Dashboard
-  logic: `filterIncidents` (search against title/service/id combined with status/severity filters
-  as AND, not OR), `sortIncidentsByUpdatedAt` (most recent first, non-mutating, stable for equal
-  timestamps), and `summarizeIncidentsByStatus` (fixed lifecycle order, zero-count statuses
-  included so the summary row never reflows).
+- **Backend** (`server/tests/`, 314 tests) — everything from prior stages, plus this stage's full
+  postmortem pipeline: `PostmortemSchema` validation (including "never generated" with every
+  provenance field null); `validatePostmortemResponse`; `buildPostmortemPrompt` (includes the
+  incident's status/resolvedAt so the model never invents a resolution, every hypothesis's
+  title/confidence/status, and instructs hedged language unless `confirmed-by-human`);
+  `mapAiResponseToPostmortem` (attaches provenance, always resets `lastEditedAt` to `null`);
+  `MockAIProvider`'s postmortem generation (deterministic across every sample; names the leading
+  hypothesis with hedged language by default and unhedged "confirmed cause" language when a
+  hypothesis is human-confirmed; lists every hypothesis investigated, not only the leading one;
+  states "not yet resolved" vs. an actual `resolvedAt`; derives lessons learned from the run's own
+  reasoning risks, with a fallback when none exist); `postmortemService` (generate success,
+  retry-with-repair, both-attempts-invalid, 404/400 error paths, edit merges a patch without
+  touching provenance except `lastEditedAt`, regenerating fully replaces a prior draft including
+  human edits); the `POST`/`PATCH .../postmortem` routes end to end; and the new `setPostmortem`
+  repository method. Also caught and fixed a real bug during this stage's live smoke test: the
+  mock postmortem's `likelyCause` was appending "This has not been independently confirmed." even
+  when the hypothesis's own description already ended with that exact sentence.
+- **Frontend** (`tests/`, 113 tests) — everything from prior stages, plus `buildPostmortemMarkdown`
+  (every content field renders under its own heading, incident metadata and resolution status are
+  correct, empty array fields render an explicit "_None recorded._" rather than a blank list, and
+  the provenance footer reports "never" vs. an actual edit timestamp).
 
-Full component-level React Testing Library tests are introduced in a later development stage — the
-workspace and Dashboard UI are exercised via their underlying pure logic and via live API/build
-smoke tests, not by rendering React components in a test runner. `AnthropicAIProvider` is still not
-exercised against the live Anthropic API (no network calls in tests, no API key available in this
-environment).
+Full component-level React Testing Library tests remain out of scope for this project's stage plan
+— the workspace and Dashboard UI are exercised via their underlying pure logic and via live
+API/build smoke tests, not by rendering React components in a test runner. `AnthropicAIProvider` is
+still not exercised against the live Anthropic API (no network calls in tests, no API key available
+in this environment).
 
-## Known limitations (Stage 9)
+## Known limitations (final)
 
-- One of the nine workspace tabs (Postmortem) remains a placeholder naming the stage that builds
-  it (10).
 - The Dashboard's search/filter/sort is entirely client-side over the full incident list returned
   by `GET /api/incidents` — fine at this app's scale (a handful of bundled samples plus whatever a
   single user creates in a session), but wouldn't scale to a large, multi-user incident volume
-  without server-side pagination/filtering, which is out of scope for this stage.
+  without server-side pagination/filtering.
 - The incident table has one fixed sort order (most recently updated first); there is no
   clickable-column sort by title, status, or severity.
-- A skeptic review always reviews the incident's *latest* analysis run; there is no way to request
-  a skeptic review of an older run once a newer one exists, matching how every other workspace tab
-  already treats "the latest run" as authoritative.
+- A skeptic review or postmortem draft always applies to the incident's *latest* analysis run;
+  there is no way to request either for an older run once a newer one exists, matching how every
+  workspace tab treats "the latest run" as authoritative.
+- Regenerating a postmortem draft fully discards any human edits already made (the "Regenerate"
+  button is labeled to say so) — there is no diff/merge assistance between an old edited draft and
+  a freshly regenerated one.
 - Recommended Actions and open investigation questions are shown together in the same tab, but
   there is no id-level link between a specific action and a specific question — `openQuestions` is
   a plain `string[]` on `AnalysisRun`, not a list of objects with ids, matching the original data
@@ -472,17 +548,19 @@ environment).
 - Redaction of sensitive values before sending evidence to a real AI provider is still not
   implemented (unchanged from Stage 4) — evidence is sent to Anthropic as-is when
   `AI_PROVIDER=anthropic`.
-- No full-page/component-level frontend test suite (React Testing Library) yet, and no browser
-  tool is available in this environment to click through the new Dashboard UI — typecheck, lint,
-  the full test suite, and a production build were all verified; the production bundle was checked
-  to confirm the new Dashboard/filter strings actually made it in, and a live smoke test against the
-  running server confirmed the exact sort order the Dashboard uses (`sortIncidentsByUpdatedAt`'s
-  comparator, replicated independently) puts a freshly created incident first, ahead of all three
-  bundled samples, using real `GET`/`POST /api/incidents` responses.
+- No full-page/component-level frontend test suite (React Testing Library) — deliberately out of
+  scope for the full ten-stage plan (see "Testing" above), not merely deferred.
+- No browser tool is available in this environment to click through the new Postmortem UI (or any
+  UI, across all ten stages) — typecheck, lint, the full test suite, and a production build were
+  all verified at every stage; this stage's live smoke test additionally confirmed the production
+  bundle's route-level code-split chunk for the Incident Workspace actually contains the new
+  Postmortem UI strings, and exercised the full generate → edit → regenerate lifecycle plus every
+  error path (400 with no analysis yet, 400 with no draft yet to edit, 404 for a missing incident,
+  400 for an invalid PATCH field type) against a running server.
 
 ## Roadmap
 
-See the project brief for the full ten-stage plan: shared models & mock data, incident input &
-file upload, AI provider architecture, evidence workspace, timeline & hypotheses, reasoning-risk
-detection, critical AI review, incident dashboard & navigation, postmortem export, and final
-testing/polish.
+All ten planned stages are complete: shared models & mock data, incident input & file upload, AI
+provider architecture, evidence workspace, timeline & hypotheses, reasoning-risk detection,
+critical AI review, incident dashboard & navigation, postmortem export, and final testing/polish.
+See "Known limitations" above for what's deliberately still out of scope.
