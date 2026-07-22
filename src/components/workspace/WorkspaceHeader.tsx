@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { Button, Chip, Stack, Typography } from '@mui/material';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import type { Incident } from '../../../shared/types/incident';
-import { getIncidentStatusDisplay, getSeverityDisplay } from '../../utils/statusDisplay';
+import { getSeverityDisplay } from '../../utils/statusDisplay';
+import { IncidentStatusSelector } from './IncidentStatusSelector';
 
 interface WorkspaceHeaderProps {
   incident: Incident;
@@ -11,12 +12,12 @@ interface WorkspaceHeaderProps {
 }
 
 /**
- * Incident Workspace page header: title, severity/status/affected-service
- * chips, and the action to trigger (or re-trigger) AI analysis.
+ * Incident Workspace page header: title, severity chip, an editable status
+ * selector, the affected service, and the action to trigger (or re-trigger)
+ * AI analysis.
  */
 export function WorkspaceHeader({ incident, onAnalyze, isAnalyzing }: WorkspaceHeaderProps): ReactNode {
   const severity = getSeverityDisplay(incident.severity);
-  const status = getIncidentStatusDisplay(incident.status);
   const hasBeenAnalyzed = incident.analysisRuns.length > 0;
 
   return (
@@ -32,7 +33,7 @@ export function WorkspaceHeader({ incident, onAnalyze, isAnalyzing }: WorkspaceH
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
             <Chip label={`Severity: ${severity.label}`} color={severity.color} variant="outlined" />
-            <Chip label={`Status: ${status.label}`} color={status.color} variant="outlined" />
+            <IncidentStatusSelector incident={incident} />
             <Typography variant="body2" color="text.secondary">
               Affected service: {incident.affectedService}
             </Typography>

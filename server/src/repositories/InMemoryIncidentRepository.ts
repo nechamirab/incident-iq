@@ -49,6 +49,7 @@ export class InMemoryIncidentRepository implements IncidentRepository {
       startedAt: input.startedAt ?? null,
       detectedAt: input.detectedAt,
       resolvedAt: null,
+      resolutionNotes: null,
       createdAt: now,
       updatedAt: now,
       evidence: [],

@@ -12,6 +12,7 @@ import {
   ReasoningItemSchema,
   SkepticReviewSchema,
   TimelineEventSchema,
+  UserSelectableIncidentStatusSchema,
 } from '../../shared/schemas/index.js';
 import { sampleIncidents } from '../src/data/incidents/index.js';
 
@@ -47,6 +48,32 @@ describe('IncidentSchema', () => {
   it('rejects an incident missing a required field', () => {
     const { title: _title, ...withoutTitle } = sampleIncidents[0];
     expect(IncidentSchema.safeParse(withoutTitle).success).toBe(false);
+  });
+
+  it('accepts a null resolutionNotes', () => {
+    const incident = { ...sampleIncidents[0], resolutionNotes: null };
+    expect(IncidentSchema.safeParse(incident).success).toBe(true);
+  });
+
+  it('accepts a populated resolutionNotes string', () => {
+    const incident = { ...sampleIncidents[0], resolutionNotes: 'Root cause addressed.' };
+    expect(IncidentSchema.safeParse(incident).success).toBe(true);
+  });
+});
+
+describe('UserSelectableIncidentStatusSchema', () => {
+  it('accepts every user-selectable status', () => {
+    for (const status of ['draft', 'under-investigation', 'resolved', 'archived']) {
+      expect(UserSelectableIncidentStatusSchema.safeParse(status).success).toBe(true);
+    }
+  });
+
+  it('excludes "analyzing", a system-managed transient status', () => {
+    expect(UserSelectableIncidentStatusSchema.safeParse('analyzing').success).toBe(false);
+  });
+
+  it('rejects an unsupported status value', () => {
+    expect(UserSelectableIncidentStatusSchema.safeParse('closed').success).toBe(false);
   });
 });
 

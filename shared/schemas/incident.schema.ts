@@ -13,6 +13,16 @@ export const IncidentStatusSchema = z.enum([
   'archived',
 ]);
 
+/**
+ * Statuses a human may explicitly select (e.g. from the workspace's status
+ * selector). Excludes `analyzing`, which is a transient, system-managed
+ * state set automatically while an AI analysis run is in flight (see
+ * `analysisService.analyzeIncident`) -- never a state a user chooses to
+ * enter directly. Derived from {@link IncidentStatusSchema} via `.exclude`
+ * so the two lists can never drift apart.
+ */
+export const UserSelectableIncidentStatusSchema = IncidentStatusSchema.exclude(['analyzing']);
+
 export const IncidentSeveritySchema = z.enum(['low', 'medium', 'high', 'critical']);
 
 /**
@@ -46,6 +56,13 @@ export const IncidentSchema = z.object({
   startedAt: IsoDateTimeSchema.nullable(),
   detectedAt: IsoDateTimeSchema,
   resolvedAt: IsoDateTimeSchema.nullable(),
+  /**
+   * Free-form notes recorded when the incident was resolved. Preserved
+   * across a reopen (moving back to `draft`/`under-investigation`) unless
+   * a subsequent status update explicitly supplies a new value -- see
+   * `incidentLifecycleService.updateIncidentStatus`.
+   */
+  resolutionNotes: z.string().nullable(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
   evidence: z.array(EvidenceItemSchema),
@@ -73,4 +90,5 @@ export const CreateIncidentInputSchema = z.object({
 export const UpdateIncidentInputSchema = CreateIncidentInputSchema.partial().extend({
   status: IncidentStatusSchema.optional(),
   resolvedAt: IncidentSchema.shape.resolvedAt.optional(),
+  resolutionNotes: IncidentSchema.shape.resolutionNotes.optional(),
 });

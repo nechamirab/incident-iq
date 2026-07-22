@@ -1,7 +1,16 @@
-import type { Incident } from '../../shared/types/incident';
+import type { Incident, UserSelectableIncidentStatus } from '../../shared/types/incident';
 import { EVIDENCE_TEXT_FIELDS } from '../../shared/constants/evidenceFields';
 import type { NewIncidentFormValues } from '../schemas/newIncidentForm.schema';
 import { apiRequest } from './apiClient';
+
+/** Request payload for {@link updateIncidentStatus}. */
+export interface UpdateIncidentStatusPayload {
+  status: UserSelectableIncidentStatus;
+  /** Required when `status` is `"resolved"`; ignored otherwise (the backend computes it). */
+  resolvedAt?: string;
+  /** Omit to leave existing resolution notes untouched (e.g. when reopening). */
+  resolutionNotes?: string;
+}
 
 /**
  * Fetches every incident (bundled samples plus any created by the user).
@@ -15,6 +24,24 @@ export async function fetchIncidents(): Promise<Incident[]> {
  */
 export async function fetchIncidentById(incidentId: string): Promise<Incident> {
   return apiRequest<Incident>(`/api/incidents/${incidentId}`);
+}
+
+/**
+ * Updates an incident's lifecycle status (and, when resolving, its
+ * `resolvedAt`/`resolutionNotes`) via the dedicated status-update endpoint.
+ *
+ * @param incidentId The incident to update.
+ * @param payload The new status and, when resolving, its resolution details.
+ * @returns The updated incident.
+ */
+export async function updateIncidentStatus(
+  incidentId: string,
+  payload: UpdateIncidentStatusPayload,
+): Promise<Incident> {
+  return apiRequest<Incident>(`/api/incidents/${incidentId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
 
 /**

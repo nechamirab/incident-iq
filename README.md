@@ -31,6 +31,14 @@ The system is designed to always separate **facts** (directly supported by evide
 >   friendly fallback instead of a blank screen, and removal of the now-dead
 >   `PlaceholderSection`/`arrivingInStage` placeholder machinery now that every workspace tab is
 >   implemented.
+>
+> **Post-Stage-10 polish -- UX flow and incident lifecycle.** With every tab built, this pass turned
+> the workspace into a guided investigation flow rather than a set of independent tabs: an editable
+> status selector (with a proper resolution workflow) replaces the old static status chip, a
+> five-step progress banner ties the whole investigation together, evidence can be added to an
+> incident after creation instead of only at intake, and the workspace now tells you when new
+> evidence has outpaced the last analysis run. See "Incident lifecycle and guided investigation"
+> below for details.
 
 ## Architecture
 
@@ -290,6 +298,61 @@ if analysis itself fails the incident was still created successfully, so the use
 its workspace with a clear "no analysis yet" state and a retry button, rather than losing the
 submission.
 
+### Incident lifecycle and guided investigation
+
+- **Editable status** (`IncidentStatusSelector`, replacing the old static status chip in
+  `WorkspaceHeader`) — a button-triggered menu offering every status a human may choose directly:
+  `draft`, `under-investigation`, `resolved`, `archived`. `analyzing` is deliberately excluded --
+  it's a transient, system-managed state the backend sets automatically while an AI analysis run is
+  in flight, never a state a user selects (see `UserSelectableIncidentStatusSchema`, derived from
+  the full status enum via `.exclude(['analyzing'])` so the two lists can never drift apart).
+  `PATCH /api/incidents/:incidentId/status` is the endpoint behind it -- the first partial-update
+  endpoint the API actually exposed; `IncidentRepository.update()` already supported arbitrary
+  partial updates, but nothing had wired it to a route until now.
+- **Resolution workflow** — selecting "resolved" opens a confirmation dialog (`resolvedAt`
+  defaulting to now, optional free-form resolution notes) rather than updating immediately;
+  cancelling leaves the incident untouched. The lifecycle rules live in one pure, unit-tested
+  function, `incidentLifecycleService.computeResolvedAt`: resolving sets `resolvedAt` to the
+  confirmed time; archiving preserves whatever `resolvedAt` already was (`null` if the incident was
+  never resolved -- archiving must never invent a resolution time); any other transition (reopening)
+  clears it. `resolutionNotes` is a new field on `Incident` (`shared/schemas/incident.schema.ts`,
+  threaded through every layer down to the sample data), only overwritten when a request explicitly
+  supplies it, so reopening an incident preserves its prior notes rather than silently discarding
+  them.
+- **Optimistic updates** — `useUpdateIncidentStatus` updates the cached incident immediately (via a
+  pure, independently-tested `applyOptimisticStatusUpdate` that mirrors the backend's transition
+  rules), rolls back to a snapshot taken before the mutation if the request fails, and invalidates
+  every incident-related query (`incident`, `incidents`, `sampleIncidents`) once it settles --
+  entirely through the existing TanStack Query cache, nothing duplicated into Zustand. The Dashboard
+  needs no separate refresh: its status summary, filters, and list are already derived from the same
+  `incidents` query.
+- **Investigation progress banner** (`InvestigationProgressBanner`, driven by the pure
+  `getInvestigationSteps` utility) — five steps (Review Evidence, Analyze and Hypothesize, Evaluate
+  Risks and Skeptic Review, Draft Postmortem, Resolve Incident), each independently derived from the
+  incident's actual data (evidence present, a *successful* analysis run with hypotheses, that run's
+  reasoning risks *and* a skeptic review, a postmortem, and `status === 'resolved'` respectively) --
+  never from `status` alone, and never assuming steps complete in order. The first incomplete step
+  is "current"; every step still reports its own true completion even when a later one finished
+  first (e.g. a postmortem drafted before a skeptic review was ever run). Clicking a step switches
+  to its workspace tab; "Resolve Incident" has no tab of its own, so it focuses the status selector
+  instead.
+- **Adding evidence to an existing incident** (`AddEvidenceDialog`, opened from the Evidence tab) —
+  a Zod/React-Hook-Form-validated dialog for one evidence item at a time (application log snippet,
+  monitoring alert, or support/user message; content is rejected if blank or whitespace-only). Backed
+  by a new `POST /api/incidents/:incidentId/evidence`, which reuses the existing
+  `IncidentRepository.addEvidence` persistence path and the same id-generation/normalization
+  utilities the New Incident form's bulk intake already uses -- evidence ids are always generated on
+  the backend, never in the browser.
+- **Outdated-analysis indication** (`OutdatedAnalysisBanner`, driven by the pure
+  `getAnalysisFreshness` utility) — compares the newest evidence `createdAt` against the latest
+  *successful* analysis run's `createdAt`; nothing is persisted for this, it's recomputed from
+  existing data every render. An incident with no successful analysis yet is reported as
+  `"not-analyzed"`, never `"outdated"`. When evidence outpaces the last analysis, a compact banner
+  explains that the visible results may not reflect the newer evidence and offers "Re-run AI
+  analysis" -- sharing the exact same `useAnalyzeIncident` mutation (and its `isPending` state)
+  already wired to the header's own analyze button, so the two triggers can never fire simultaneous
+  requests, and analysis is never triggered automatically.
+
 ### Mock data and persistence
 
 `server/src/data/incidents/` ships three realistic, deliberately ambiguous synthetic incidents
@@ -347,21 +410,25 @@ incident-iq/
                             # ReasoningRisks/RecommendedActions/AIReview/Postmortem sections,
                             # HypothesisCard, ConfidenceIndicator, EvidenceReferenceChips,
                             # ReviewStatusControl, RunComparisonTable, SkepticReviewCard,
-                            # EditableStringList
+                            # EditableStringList, IncidentStatusSelector, ResolveIncidentDialog,
+                            # AddEvidenceDialog, InvestigationProgressBanner, OutdatedAnalysisBanner
     components/common/     # ControlledTextField, CopyButton
     pages/                 # Route-level page components
     hooks/                 # React hooks (useIncident(s), useCreateIncident, useAnalyzeIncident,
                             # useReviewStatement, useRunSkepticReview, useUpdateSkepticReviewNotes,
-                            # useGeneratePostmortem, useEditPostmortem, ...)
-    services/              # Typed API clients (incidentService, analysisService,
-                            # postmortemService, ...)
+                            # useGeneratePostmortem, useEditPostmortem, useUpdateIncidentStatus,
+                            # useAddEvidence, ...)
+    services/              # Typed API clients (incidentService, analysisService, postmortemService,
+                            # evidenceService, ...)
     store/                 # Zustand: workspace UI state only (active tab, evidence search/filter)
-    schemas/               # Frontend-only Zod schemas (New Incident form)
+    schemas/               # Frontend-only Zod schemas (New Incident, resolve-incident,
+                            # add-evidence forms)
     constants/              # Routes, query keys, workspace section config
     theme/                 # MUI theme tokens
     utils/                 # File validation/size formatting, evidence/incident filtering/sorting/
                             # summarizing, reference-indexing, status-display mapping,
-                            # buildPostmortemMarkdown
+                            # buildPostmortemMarkdown, investigationProgress, analysisFreshness,
+                            # applyOptimisticStatusUpdate
   server/                  # Backend application
     src/
       app.ts               # Express app factory (dependency-injectable repository + AI provider)
@@ -372,9 +439,10 @@ incident-iq/
       middleware/           # Error handling, 404 handling, Multer upload, Zod body validation
       parsers/              # Text/JSON/CSV evidence parsers + extension dispatcher
       services/             # evidenceService, incidentService, analysisService,
-                            # skepticReviewService, postmortemService
+                            # skepticReviewService, postmortemService, incidentLifecycleService
       schemas/              # Server-only request schemas (incident intake, statement review,
-                            # skeptic review notes, postmortem edit)
+                            # skeptic review notes, postmortem edit, incident status update,
+                            # evidence create)
       repositories/         # IncidentRepository interface + in-memory implementation
       data/incidents/       # Bundled synthetic sample incidents
       ai/
@@ -497,38 +565,54 @@ npm run test:client   # frontend only (Vitest, node environment)
 npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-427 tests total:
+497 tests total:
 
-- **Backend** (`server/tests/`, 314 tests) — everything from prior stages, plus this stage's full
-  postmortem pipeline: `PostmortemSchema` validation (including "never generated" with every
-  provenance field null); `validatePostmortemResponse`; `buildPostmortemPrompt` (includes the
-  incident's status/resolvedAt so the model never invents a resolution, every hypothesis's
-  title/confidence/status, and instructs hedged language unless `confirmed-by-human`);
-  `mapAiResponseToPostmortem` (attaches provenance, always resets `lastEditedAt` to `null`);
-  `MockAIProvider`'s postmortem generation (deterministic across every sample; names the leading
-  hypothesis with hedged language by default and unhedged "confirmed cause" language when a
-  hypothesis is human-confirmed; lists every hypothesis investigated, not only the leading one;
-  states "not yet resolved" vs. an actual `resolvedAt`; derives lessons learned from the run's own
-  reasoning risks, with a fallback when none exist); `postmortemService` (generate success,
-  retry-with-repair, both-attempts-invalid, 404/400 error paths, edit merges a patch without
-  touching provenance except `lastEditedAt`, regenerating fully replaces a prior draft including
-  human edits); the `POST`/`PATCH .../postmortem` routes end to end; and the new `setPostmortem`
-  repository method. Also caught and fixed a real bug during this stage's live smoke test: the
-  mock postmortem's `likelyCause` was appending "This has not been independently confirmed." even
-  when the hypothesis's own description already ended with that exact sentence.
-- **Frontend** (`tests/`, 113 tests) — everything from prior stages, plus `buildPostmortemMarkdown`
-  (every content field renders under its own heading, incident metadata and resolution status are
-  correct, empty array fields render an explicit "_None recorded._" rather than a blank list, and
-  the provenance footer reports "never" vs. an actual edit timestamp).
+- **Backend** (`server/tests/`, 354 tests) — everything from prior stages, plus this pass's incident
+  lifecycle and evidence-addition coverage: `computeResolvedAt`'s full transition matrix (resolve,
+  reopen-clears, archive-preserves, archive-never-invents) and `updateIncidentStatus` (persists a
+  resolution's notes, preserves them across a reopen that doesn't supply new ones, overwrites them
+  when a request does, 404 for a missing incident); the `PATCH .../status` route end to end (valid
+  transitions, rejects unsupported statuses *and* `"analyzing"` specifically, requires `resolvedAt`
+  when resolving, the same lifecycle rules re-verified through the real HTTP layer, the standard API
+  response envelope); `buildManualEvidenceItem` and the `POST .../evidence` route (every requested
+  source type preserved exactly, optional timestamp defaults to `null`, ids always server-generated
+  even if a client tries to supply one, rejects missing/invalid fields and whitespace-only content).
+  `UserSelectableIncidentStatusSchema` is also directly tested to confirm it excludes `"analyzing"`.
+- **Frontend** (`tests/`, 143 tests) — everything from prior stages, plus pure-logic coverage for
+  every new derivation: `getInvestigationSteps` (each step's independent completion check, the
+  first-incomplete-is-current rule, out-of-order completion such as a postmortem drafted before a
+  skeptic review, and confirming status alone never drives progress -- a "resolved" incident with no
+  evidence still leaves step 1 incomplete); `getAnalysisFreshness`/`getNewestEvidenceCreatedAt`
+  (not-analyzed vs. outdated vs. up-to-date, a failed run never counting as "analyzed", a later
+  successful run clearing a prior outdated state); and `applyOptimisticStatusUpdate` (mirrors the
+  backend's transition rules for the optimistic cache update, including that it never mutates its
+  input).
 
-Full component-level React Testing Library tests remain out of scope for this project's stage plan
-— the workspace and Dashboard UI are exercised via their underlying pure logic and via live
-API/build smoke tests, not by rendering React components in a test runner. `AnthropicAIProvider` is
+Full component-level React Testing Library tests remain out of scope for this project -- there is no
+component-testing framework (RTL/jsdom) installed, and this pass deliberately did not add one rather
+than change established test infrastructure as a side effect of a feature change. Concretely, this
+means the *interactive* behavior of the new status menu, resolution/add-evidence dialogs, and
+progress-banner navigation (opening a menu, cancelling a dialog, a disabled-while-pending button) is
+verified by live smoke testing against a running server and by production-bundle content checks
+(see below), not by an automated component test. Every derivation and mutation-adjacent computation
+underneath that UI (see the two bullets above) is unit-tested directly. `AnthropicAIProvider` is
 still not exercised against the live Anthropic API (no network calls in tests, no API key available
 in this environment).
 
 ## Known limitations (final)
 
+- The investigation progress banner's five steps are fixed and not reorderable/configurable; "Evaluate
+  risks and skeptic review" requires *both* a reasoning risk and a skeptic review to be marked
+  complete, which is intentional (matching the spec) but means an incident with only one of the two
+  still shows that step as the current, incomplete one.
+- The status selector's success/error feedback is a locally-managed Snackbar/inline Alert per
+  component (matching the existing `CopyButton` precedent), not a shared, app-wide notification
+  system -- there isn't one in this codebase to reuse, and introducing one was out of scope for this
+  pass.
+- No component-testing framework (React Testing Library/jsdom) is installed, so the *interactive*
+  behavior of the new status menu, resolution dialog, add-evidence dialog, and progress-banner
+  navigation is not covered by an automated test -- see "Testing" above for exactly what is and
+  isn't covered, and why one wasn't added as a side effect of this change.
 - The Dashboard's search/filter/sort is entirely client-side over the full incident list returned
   by `GET /api/incidents` — fine at this app's scale (a handful of bundled samples plus whatever a
   single user creates in a session), but wouldn't scale to a large, multi-user incident volume

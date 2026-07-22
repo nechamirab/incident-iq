@@ -7,6 +7,8 @@ import { AIReviewSection } from '../../components/workspace/AIReviewSection';
 import { EvidenceSection } from '../../components/workspace/EvidenceSection';
 import { FactsAssumptionsSection } from '../../components/workspace/FactsAssumptionsSection';
 import { HypothesesSection } from '../../components/workspace/HypothesesSection';
+import { InvestigationProgressBanner } from '../../components/workspace/InvestigationProgressBanner';
+import { OutdatedAnalysisBanner } from '../../components/workspace/OutdatedAnalysisBanner';
 import { OverviewSection } from '../../components/workspace/OverviewSection';
 import { PageBreadcrumbs } from '../../components/layout/PageBreadcrumbs';
 import { PostmortemSection } from '../../components/workspace/PostmortemSection';
@@ -86,6 +88,7 @@ export function IncidentWorkspacePage(): ReactNode {
   return (
     <Stack spacing={3}>
       {breadcrumbs}
+      <InvestigationProgressBanner incident={incident} />
       <WorkspaceHeader
         incident={incident}
         onAnalyze={() => analyzeMutation.mutate()}
@@ -97,6 +100,12 @@ export function IncidentWorkspacePage(): ReactNode {
           Analysis failed: {analyzeMutation.error.message}
         </Alert>
       )}
+
+      <OutdatedAnalysisBanner
+        incident={incident}
+        onReanalyze={() => analyzeMutation.mutate()}
+        isAnalyzing={analyzeMutation.isPending}
+      />
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs

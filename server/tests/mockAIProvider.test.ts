@@ -24,6 +24,7 @@ function buildMinimalIncident(): Incident {
     startedAt: null,
     detectedAt: now,
     resolvedAt: null,
+    resolutionNotes: null,
     createdAt: now,
     updatedAt: now,
     evidence: [

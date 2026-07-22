@@ -26,6 +26,7 @@ export const ecommerceCheckoutIncident: Incident = {
   startedAt: '2026-06-14T14:30:00Z',
   detectedAt: DETECTED_AT,
   resolvedAt: null,
+  resolutionNotes: null,
   createdAt: DETECTED_AT,
   updatedAt: DETECTED_AT,
   analysisRuns: [],

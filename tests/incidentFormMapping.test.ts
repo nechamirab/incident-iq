@@ -17,6 +17,7 @@ function buildIncident(overrides: Partial<Incident> = {}): Incident {
     startedAt: '2026-06-14T14:30:00Z',
     detectedAt: '2026-06-14T14:41:00Z',
     resolvedAt: null,
+    resolutionNotes: null,
     createdAt: '2026-06-14T14:41:00Z',
     updatedAt: '2026-06-14T14:41:00Z',
     evidence: [],

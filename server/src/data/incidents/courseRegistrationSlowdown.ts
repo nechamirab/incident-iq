@@ -26,6 +26,7 @@ export const courseRegistrationSlowdownIncident: Incident = {
   startedAt: '2026-05-18T09:00:00Z',
   detectedAt: DETECTED_AT,
   resolvedAt: null,
+  resolutionNotes: null,
   createdAt: DETECTED_AT,
   updatedAt: DETECTED_AT,
   analysisRuns: [],

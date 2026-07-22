@@ -25,6 +25,7 @@ export const mobileLoginFailureIncident: Incident = {
   startedAt: '2026-07-08T19:00:00Z',
   detectedAt: DETECTED_AT,
   resolvedAt: null,
+  resolutionNotes: null,
   createdAt: DETECTED_AT,
   updatedAt: DETECTED_AT,
   analysisRuns: [],

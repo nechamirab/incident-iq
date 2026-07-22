@@ -34,6 +34,7 @@ export function buildIncident(overrides: Partial<Incident> = {}): Incident {
     startedAt: null,
     detectedAt: '2026-07-01T00:00:00Z',
     resolvedAt: null,
+    resolutionNotes: null,
     createdAt: '2026-07-01T00:00:00Z',
     updatedAt: '2026-07-01T00:00:00Z',
     evidence: [],
