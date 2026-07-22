@@ -59,6 +59,7 @@ describe('analyzeIncident', () => {
       fallbackUsed: false,
       fallbackReason: null,
       providerVerified: null,
+      providerRequestId: null,
       async complete(_incident: Incident, _prompt: AIPrompt): Promise<string> {
         statusDuringCall = (await repository.findById(incident.id))?.status;
         return JSON.stringify(buildValidAiResponse({}, incident.evidence[0].id));

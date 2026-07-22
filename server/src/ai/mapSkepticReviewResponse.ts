@@ -18,6 +18,7 @@ export interface MapSkepticReviewResponseParams {
   configuredProvider?: AiProviderName;
   fallbackUsed?: boolean;
   fallbackReason?: string | null;
+  providerRequestId?: string | null;
 }
 
 /**
@@ -65,6 +66,7 @@ export function mapAiResponseToSkepticReview(params: MapSkepticReviewResponsePar
     configuredProvider = providerName,
     fallbackUsed = false,
     fallbackReason = null,
+    providerRequestId = null,
   } = params;
 
   const leading = findLeadingHypothesis(run);
@@ -85,6 +87,7 @@ export function mapAiResponseToSkepticReview(params: MapSkepticReviewResponsePar
     configuredProvider,
     fallbackUsed,
     fallbackReason,
+    providerRequestId,
     challengedHypothesisId: leading.id,
     challengeSummary: response.challengeSummary,
     alternativeExplanations: response.alternativeExplanations,

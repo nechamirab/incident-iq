@@ -11,6 +11,7 @@ export interface MapPostmortemResponseParams {
   configuredProvider?: AiProviderName;
   fallbackUsed?: boolean;
   fallbackReason?: string | null;
+  providerRequestId?: string | null;
 }
 
 /**
@@ -29,6 +30,7 @@ export function mapAiResponseToPostmortem(params: MapPostmortemResponseParams): 
     configuredProvider = providerName,
     fallbackUsed = false,
     fallbackReason = null,
+    providerRequestId = null,
   } = params;
 
   return {
@@ -41,5 +43,6 @@ export function mapAiResponseToPostmortem(params: MapPostmortemResponseParams): 
     configuredProvider,
     fallbackUsed,
     fallbackReason,
+    providerRequestId,
   };
 }

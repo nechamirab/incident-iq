@@ -109,18 +109,51 @@ and persists the result. The pipeline (`server/src/ai/`, orchestrated by
   concern from `runProviderWithRetry`'s one-shot repair retry for malformed JSON *output* below. A
   provider instance only reports `providerVerified: true` after at least one real Anthropic call has
   actually succeeded in that process's lifetime.
+- **`OpenAIProvider`** — the real provider for `AI_PROVIDER=openai`, backed by the OpenAI Responses
+  API (`client.responses.create`, reading `response.output_text`). Structurally a mirror of
+  `AnthropicAIProvider`: same lazy key check and `503 AI_PROVIDER_NOT_CONFIGURED` on first use, same
+  translated error taxonomy (`401 AI_PROVIDER_AUTH_FAILED` for auth/permission failures, `429
+  AI_PROVIDER_RATE_LIMITED` for rate limits, a distinct `429 AI_PROVIDER_QUOTA_EXCEEDED` for a
+  billing/quota failure specifically -- OpenAI reports both as HTTP 429, distinguished here by the
+  SDK error's own `code: 'insufficient_quota'`, `502 AI_PROVIDER_NETWORK_ERROR` for connection/timeout
+  failures, `502 AI_PROVIDER_ERROR` for invalid requests and 5xx provider errors), an explicit
+  request timeout (60s) plus `maxRetries: 2` at the SDK transport layer, and the same
+  `providerVerified`/one-request-id-per-completed-call tracking. Two failure modes it additionally
+  distinguishes, since the Responses API can produce them directly: a response left `incomplete`
+  (e.g. truncated by `max_output_tokens`) and an explicit model **refusal** (a distinct `502
+  AI_PROVIDER_REFUSED`, never conflated with an ordinary empty response). Whenever the SDK exposes
+  one, the response's safe request id (`x-request-id`, not an auth header) is attached to both error
+  details and successful-run metadata (`providerRequestId`) for support/debugging purposes.
+
+  **On Structured Outputs:** the `openai` SDK can constrain a response to a Zod schema
+  (`zodTextFormat` + `responses.parse`), which was evaluated for this feature and found directly
+  incompatible with this codebase's existing AI-facing schemas: `AiHypothesisSchema.status` is
+  `z.literal('proposed').optional()`, and OpenAI's strict-mode JSON Schema requires every property to
+  be in `required` (the installed SDK's own schema-conversion helper throws synchronously on this,
+  confirmed by direct inspection rather than assumed); separately, `AiAnalysisResponseSchema` has a
+  top-level `.refine()` enforcing hypothesis-`tempId` uniqueness, an invariant with no JSON Schema
+  representation at all. A hand-written adapter schema could dodge both, but every AI-facing schema
+  already describes its required shape to the model in natural language inside its own versioned
+  prompt (the same technique `MockAIProvider` and `AnthropicAIProvider` already rely on), and the
+  domain Zod schema -- refinement included -- is the sole, unweakened validation authority for every
+  provider regardless. A parallel adapter schema would only marginally reduce how often the existing
+  one-shot repair retry is needed, at the cost of a second schema per AI flow to hand-maintain and a
+  new version-coupling risk isolated to this one provider. `OpenAIProvider` therefore sends its
+  prompt as plain text and returns the raw response, exactly like `AnthropicAIProvider` -- see the
+  doc comment atop `ai/providers/OpenAIProvider.ts` for the full reasoning.
 - **Centralized provider selection** (`ai/providers/createAIProvider.ts`, backed by the pure
-  `resolveProviderSelection.ts`) is the single place that decides mock vs. Anthropic — every AI flow
-  (analysis, skeptic review, postmortem) is constructed once in `createApp()` and receives the same
-  injected provider instance; none of them instantiate a provider directly. `AI_PROVIDER=mock` never
-  needs a key. `AI_PROVIDER=anthropic` with a configured key uses `AnthropicAIProvider` for real. If
-  `AI_PROVIDER=anthropic` but the key is missing or empty, the app does **not** silently fall back to
-  mock: it keeps using `AnthropicAIProvider`, which raises `AI_PROVIDER_NOT_CONFIGURED` on the first
-  real request. The only way to get mock output while `AI_PROVIDER=anthropic` is to explicitly set
+  `resolveProviderSelection.ts`) is the single place that decides mock vs. Anthropic vs. OpenAI --
+  every AI flow (analysis, skeptic review, postmortem) is constructed once in `createApp()` and
+  receives the same injected provider instance; none of them instantiate a provider directly.
+  `AI_PROVIDER=mock` never needs a key. `AI_PROVIDER=anthropic`/`AI_PROVIDER=openai` with their
+  matching key configured use `AnthropicAIProvider`/`OpenAIProvider` for real. If the configured
+  provider's key is missing or empty, the app does **not** silently fall back to mock: it keeps using
+  the real provider class, which raises `AI_PROVIDER_NOT_CONFIGURED` on the first real request. The
+  only way to get mock output while `AI_PROVIDER` is `anthropic`/`openai` is to explicitly set
   `ALLOW_MOCK_FALLBACK=true` — when that fallback is taken, the resulting `MockAIProvider` instance
-  carries `configuredProvider: 'anthropic'`, `fallbackUsed: true`, and a `fallbackReason` explaining
-  why, and every run/review/postmortem it produces is recorded with those same fields (in addition to
-  `provider: 'mock'`), so a fallback result is never mistaken for a real Anthropic-generated one.
+  carries `configuredProvider: 'anthropic'|'openai'`, `fallbackUsed: true`, and a `fallbackReason`
+  explaining why, and every run/review/postmortem it produces is recorded with those same fields (in
+  addition to `provider: 'mock'`), so a fallback result is never mistaken for a real AI-generated one.
 - **Versioned prompts** (`ai/prompts/`) — `incident-analysis-v1` builds the system/user prompt from
   the incident and its evidence (each item labeled with its exact id so the model can cite it);
   `repair-invalid-json-v1` is a one-shot correction prompt used only on retry.
@@ -146,11 +179,12 @@ and persists the result. The pipeline (`server/src/ai/`, orchestrated by
 - **Run metadata** — every `AnalysisRun` records `provider`, `model`, `promptVersion` (which one
   actually produced the result — the retry's `repair-invalid-json-v1` if a repair was needed),
   `durationMs`, and `inputHash` (a SHA-256 of the exact evidence set analyzed, order-independent).
-  It also records `configuredProvider`, `fallbackUsed`, and `fallbackReason`, copied directly from
-  the injected `AIProvider` instance — these are always present and always equal `provider`/`false`/
-  `null` for a normal run, and only differ when `ALLOW_MOCK_FALLBACK` actually caused a substitution
-  (see below). `SkepticReview` and `Postmortem` records carry the same three fields for the same
-  reason.
+  It also records `configuredProvider`, `fallbackUsed`, `fallbackReason`, and `providerRequestId`,
+  copied directly from the injected `AIProvider` instance — the first three are always present and
+  always equal `provider`/`false`/`null` for a normal run, and only differ when `ALLOW_MOCK_FALLBACK`
+  actually caused a substitution (see below); `providerRequestId` is the provider's own safe request
+  id when it exposes one (currently only `OpenAIProvider` does) and `null` otherwise. `SkepticReview`
+  and `Postmortem` records carry the same four fields for the same reason.
 
 While a request is in flight the incident's status is `analyzing`; it becomes
 `under-investigation` on success, or reverts to whatever it was before on any failure — an
@@ -419,7 +453,7 @@ the incident and its full evidence list in one request.
 | Layer    | Technology                                                                 |
 | -------- | --------------------------------------------------------------------------- |
 | Frontend | React, Vite, TypeScript (strict), React Router, Material UI, TanStack Query, Zustand, React Hook Form, Zod |
-| Backend  | Node.js, Express, TypeScript (strict), CORS, dotenv, Zod, Multer, Anthropic SDK |
+| Backend  | Node.js, Express, TypeScript (strict), CORS, dotenv, Zod, Multer, Anthropic SDK, OpenAI SDK |
 | Tooling  | ESLint (flat config), Prettier, Vitest, Supertest, npm workspaces           |
 
 ## Project structure
@@ -472,7 +506,7 @@ incident-iq/
       repositories/         # IncidentRepository interface + in-memory implementation
       data/incidents/       # Bundled synthetic sample incidents
       ai/
-        providers/           # AIProvider interface, MockAIProvider, AnthropicAIProvider, factory
+        providers/           # AIProvider interface, MockAIProvider, AnthropicAIProvider, OpenAIProvider, factory
         prompts/              # Versioned prompts (incident-analysis-v1, skeptic-review-v1,
                               # postmortem-v1, repair-invalid-json-v1)
         schemas/              # AI-facing structured-output Zod schemas (analysis, skeptic
@@ -517,10 +551,12 @@ cp .env.example .env
 | `PORT`                | backend  | Port the Express API listens on (default `4001`).                  |
 | `NODE_ENV`             | backend  | `development`, `production`, or `test`.                            |
 | `CORS_ORIGIN`          | backend  | Origin allowed to call the API (default the Vite dev server).      |
-| `AI_PROVIDER`          | backend  | `mock` (default, offline, deterministic) or `anthropic` (real analysis). Any other value fails fast at startup with a clear config error. |
+| `AI_PROVIDER`          | backend  | `mock` (default, offline, deterministic), `anthropic`, or `openai` (real analysis). Any other value fails fast at startup with a clear config error. |
 | `ANTHROPIC_API_KEY`    | backend  | Only required when `AI_PROVIDER=anthropic`. Never committed. Missing/empty key → clear `503 AI_PROVIDER_NOT_CONFIGURED` on first AI request, not a crash, and never a silent switch to mock output. |
 | `ANTHROPIC_MODEL`      | backend  | Optional; which Anthropic model to call. Defaults to `claude-sonnet-5`. |
-| `ALLOW_MOCK_FALLBACK`  | backend  | `true` or `false` (default `false`; any other value fails fast at startup). When `true` *and* `AI_PROVIDER=anthropic` *and* the key is missing, AI requests are served by `MockAIProvider` instead of erroring — every such result is recorded with `provider: 'mock'`, `configuredProvider: 'anthropic'`, `fallbackUsed: true`, and a `fallbackReason`, so it's never mistaken for real output. |
+| `OPENAI_API_KEY`       | backend  | Only required when `AI_PROVIDER=openai`. Never committed. Missing/empty key → clear `503 AI_PROVIDER_NOT_CONFIGURED` on first AI request, not a crash, and never a silent switch to mock output. |
+| `OPENAI_MODEL`         | backend  | Optional; which OpenAI model to call. Defaults to `gpt-5.1`. |
+| `ALLOW_MOCK_FALLBACK`  | backend  | `true` or `false` (default `false`; any other value fails fast at startup). When `true` *and* `AI_PROVIDER` is `anthropic`/`openai` *and* that provider's key is missing, AI requests are served by `MockAIProvider` instead of erroring — every such result is recorded with `provider: 'mock'`, `configuredProvider: 'anthropic'|'openai'`, `fallbackUsed: true`, and a `fallbackReason`, so it's never mistaken for real output. |
 | `VITE_API_BASE_URL`    | frontend | Base URL the frontend uses to reach the backend (default `http://localhost:4001`). |
 
 The backend loads `.env` from the repository root (`server/src/config/env.ts`, via `dotenv`) before
@@ -528,11 +564,13 @@ anything else reads `process.env` — the config module is imported first by eve
 provider-factory, so this works identically regardless of which npm script or working directory
 started the process. All values are validated by a Zod schema at module load: a genuinely invalid
 `AI_PROVIDER` or `ALLOW_MOCK_FALLBACK` value crashes startup immediately with a readable error; a
-missing/empty `ANTHROPIC_API_KEY` is never a validation failure, since "no key configured" is a
-valid, expected state handled downstream by provider selection (see above). The Anthropic API key is
-read only on the backend, is never bundled into frontend code, and is never written to logs or
-included in any error response — the worst any error/diagnostic exposes is *whether* a key is
-configured (`apiKeyConfigured: true`/`false`), never any part of the key itself.
+missing/empty `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` is never a validation failure, since "no key
+configured" is a valid, expected state handled downstream by provider selection (see above). Both
+provider API keys are read only on the backend, are never bundled into frontend code, and are never
+written to logs or included in any error response — the worst any error/diagnostic exposes is
+*whether* the currently-configured provider's key is present (`apiKeyConfigured: true`/`false`),
+never any part of the key itself, and never a key belonging to a provider that isn't even selected
+(e.g. a leftover `ANTHROPIC_API_KEY` while `AI_PROVIDER=openai` is never reported as "configured").
 
 > If the backend fails to start with an "address already in use" error, another process on your
 > machine already holds that port. Change `PORT` (and update `VITE_API_BASE_URL` to match) in
@@ -541,7 +579,7 @@ configured (`apiKeyConfigured: true`/`false`), never any part of the key itself.
 ### Health and diagnostics
 
 `GET /api/health` reports server liveness plus AI provider diagnostics, without ever making a paid
-Anthropic request just to answer a health check and without ever exposing the key:
+API request to Anthropic or OpenAI just to answer a health check and without ever exposing a key:
 
 ```json
 {
@@ -553,8 +591,9 @@ Anthropic request just to answer a health check and without ever exposing the ke
     "uptimeSeconds": 12.3,
     "timestamp": "2026-07-21T12:00:00.000Z",
     "ai": {
-      "configuredProvider": "anthropic",
+      "configuredProvider": "openai",
       "apiKeyConfigured": true,
+      "configuredModel": "gpt-5.1",
       "mockFallbackEnabled": false,
       "providerVerified": false
     }
@@ -564,10 +603,11 @@ Anthropic request just to answer a health check and without ever exposing the ke
 ```
 
 `apiKeyConfigured` only means a key is present — it says nothing about whether that key is actually
-valid. `providerVerified` starts `false` (or `null` under `AI_PROVIDER=mock`, where there's no
-external API to verify) and only becomes `true` after the running process has completed at least one
-real, successful Anthropic API call — i.e. the server having started successfully is never treated
-as proof the integration works.
+valid. `configuredModel` is the model configured for whichever provider `configuredProvider` names
+(`null` for `mock`, which has no configurable model). `providerVerified` starts `false` (or `null`
+under `AI_PROVIDER=mock`, where there's no external API to verify) and only becomes `true` after the
+running process has completed at least one real, successful call to the configured provider — i.e.
+the server having started successfully is never treated as proof the integration works.
 
 ## Running the project
 
@@ -590,7 +630,7 @@ npm run dev:server   # Express API only (tsx watch mode)
 The Dashboard page calls `/api/health` on load and displays the connection status, so a
 successful load confirms the full stack is wired correctly.
 
-### Manual verification: mock vs. real Anthropic
+### Manual verification: mock vs. real Anthropic/OpenAI
 
 **Mock mode** (default, no key needed) — in `.env`:
 
@@ -611,20 +651,34 @@ ANTHROPIC_API_KEY=sk-ant-...your real key...
 ALLOW_MOCK_FALLBACK=false
 ```
 
-1. `cp .env.example .env` if you haven't already, then edit the three lines above directly in your
+**OpenAI mode** — same idea, in your local `.env`:
+
+```
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...your real key...
+OPENAI_MODEL=gpt-5.1
+ALLOW_MOCK_FALLBACK=false
+```
+
+Steps (identical for either provider, substitute the `AI_PROVIDER`/`*_API_KEY` values above):
+
+1. `cp .env.example .env` if you haven't already, then edit the relevant lines above directly in your
    local `.env` file (it's gitignored — `git check-ignore .env` confirms this).
 2. Restart the backend so it picks up the change: `npm run dev` (or `npm run dev:server`).
-3. `curl http://localhost:4001/api/health` and confirm `data.ai.configuredProvider` is `"anthropic"`
-   and `data.ai.apiKeyConfigured` is `true`. At this point `providerVerified` is still `false` —
+3. `curl http://localhost:4001/api/health` and confirm `data.ai.configuredProvider` matches what you
+   set and `data.ai.apiKeyConfigured` is `true`. At this point `providerVerified` is still `false` —
    that's expected, since health checks never place a paid call themselves.
-4. Run one real AI operation — e.g. open an incident in the UI and click "Analyze", or:
+4. Run one real AI operation for each of the three workflows — e.g. from the UI: "Analyze", then "Run
+   skeptic review", then "Generate postmortem"; or via the API directly:
    ```bash
    curl -X POST http://localhost:4001/api/incidents/<incidentId>/analyze
+   curl -X POST http://localhost:4001/api/incidents/<incidentId>/skeptic-review
+   curl -X POST http://localhost:4001/api/incidents/<incidentId>/postmortem
    ```
-5. Confirm the response body's `data.provider` is `"anthropic"` (not `"mock"`), and that
-   `data.configuredProvider` is `"anthropic"` with `fallbackUsed: false`. This is the only thing that
-   actually proves the integration works — the server starting, or the health check returning `200`,
-   does not.
+5. For each response, confirm `data.provider` (or `data.postmortem.provider`) is `"anthropic"`/
+   `"openai"` (not `"mock"`), and that `configuredProvider` matches with `fallbackUsed: false`. This
+   is the only thing that actually proves the integration works — the server starting, or the health
+   check returning `200`, does not.
 6. Optionally re-check `/api/health` — `data.ai.providerVerified` is now `true` for the remainder of
    that server process, since a real call has succeeded.
 
@@ -703,12 +757,14 @@ means the *interactive* behavior of the new status menu, resolution/add-evidence
 progress-banner navigation (opening a menu, cancelling a dialog, a disabled-while-pending button) is
 verified by live smoke testing against a running server and by production-bundle content checks
 (see below), not by an automated component test. Every derivation and mutation-adjacent computation
-underneath that UI (see the two bullets above) is unit-tested directly. `AnthropicAIProvider` has
-thorough unit coverage against a mocked `@anthropic-ai/sdk` client (auth/rate-limit/network/generic
-failure mapping, retry configuration, `providerVerified` tracking, key-leak checks) but is still not
-exercised against the *live* Anthropic API — the regular test suite intentionally makes no real
-network calls and requires no API key. See "Manual verification" below for how to confirm the real
-integration works end to end with your own key.
+underneath that UI (see the two bullets above) is unit-tested directly. `AnthropicAIProvider` and
+`OpenAIProvider` both have thorough unit coverage against a mocked `@anthropic-ai/sdk`/`openai`
+client respectively (auth/permission/rate-limit/quota/network/timeout/generic failure mapping, retry
+and timeout configuration, `providerVerified` tracking, key-leak checks; `OpenAIProvider`'s suite
+additionally covers incomplete responses and explicit model refusals, failure modes specific to the
+Responses API) but neither is exercised against its *live* API — the regular test suite intentionally
+makes no real network calls and requires no API key for either provider. See "Manual verification"
+below for how to confirm the real integration works end to end with your own key.
 
 ## Known limitations (final)
 
@@ -741,8 +797,8 @@ integration works end to end with your own key.
   a plain `string[]` on `AnalysisRun`, not a list of objects with ids, matching the original data
   model. The connection is presentational (shown side by side), not a foreign key.
 - Redaction of sensitive values before sending evidence to a real AI provider is still not
-  implemented (unchanged from Stage 4) — evidence is sent to Anthropic as-is when
-  `AI_PROVIDER=anthropic`.
+  implemented (unchanged from Stage 4) — evidence is sent to Anthropic/OpenAI as-is when
+  `AI_PROVIDER=anthropic`/`AI_PROVIDER=openai`.
 - No full-page/component-level frontend test suite (React Testing Library) — deliberately out of
   scope for the full ten-stage plan (see "Testing" above), not merely deferred.
 - No browser tool is available in this environment to click through the new Postmortem UI (or any

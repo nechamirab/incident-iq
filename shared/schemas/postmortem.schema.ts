@@ -39,4 +39,6 @@ export const PostmortemSchema = z.object({
   configuredProvider: AiProviderNameSchema.nullable().optional(),
   fallbackUsed: z.boolean().optional(),
   fallbackReason: z.string().nullable().optional(),
+  /** A safe, provider-issued request id, when the provider exposes one; see `AnalysisRunSchema`'s matching field. */
+  providerRequestId: z.string().nullable().optional(),
 });

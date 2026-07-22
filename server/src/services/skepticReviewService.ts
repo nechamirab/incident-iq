@@ -52,6 +52,7 @@ async function runSkepticReviewWithRetry(
     configuredProvider: provider.configuredProvider,
     fallbackUsed: provider.fallbackUsed,
     fallbackReason: provider.fallbackReason,
+    providerRequestId: provider.providerRequestId,
   });
 }
 

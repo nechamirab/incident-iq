@@ -27,6 +27,8 @@ export const SkepticReviewSchema = z.object({
   configuredProvider: AiProviderNameSchema.optional(),
   fallbackUsed: z.boolean().optional(),
   fallbackReason: z.string().nullable().optional(),
+  /** A safe, provider-issued request id, when the provider exposes one; see `AnalysisRunSchema`'s matching field. */
+  providerRequestId: z.string().nullable().optional(),
   challengedHypothesisId: IdSchema,
   challengeSummary: z.string().min(1, 'challengeSummary must not be empty'),
   alternativeExplanations: z.array(z.string()),

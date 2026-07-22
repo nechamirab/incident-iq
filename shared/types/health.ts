@@ -9,8 +9,10 @@
  * this question.
  */
 export interface AiProviderDiagnostics {
-  configuredProvider: 'mock' | 'anthropic';
+  configuredProvider: 'mock' | 'anthropic' | 'openai';
   apiKeyConfigured: boolean;
+  /** The model configured for `configuredProvider`; `null` for `mock`, which has no configurable model. */
+  configuredModel: string | null;
   mockFallbackEnabled: boolean;
   providerVerified: boolean | null;
 }

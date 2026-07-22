@@ -24,8 +24,14 @@ describe('buildAppConfig', () => {
     expect(result.anthropicApiKey).toBe('sk-ant-test-key');
   });
 
+  it('accepts AI_PROVIDER=openai with a key configured', () => {
+    const result = buildAppConfig(buildEnv({ AI_PROVIDER: 'openai', OPENAI_API_KEY: 'sk-openai-test-key' }));
+    expect(result.aiProvider).toBe('openai');
+    expect(result.openaiApiKey).toBe('sk-openai-test-key');
+  });
+
   it('rejects an unsupported AI_PROVIDER value', () => {
-    expect(() => buildAppConfig(buildEnv({ AI_PROVIDER: 'openai' }))).toThrow(/AI_PROVIDER/);
+    expect(() => buildAppConfig(buildEnv({ AI_PROVIDER: 'azure-openai' }))).toThrow(/AI_PROVIDER/);
   });
 
   it('treats a missing ANTHROPIC_API_KEY as "no key configured", not an error', () => {
@@ -51,6 +57,44 @@ describe('buildAppConfig', () => {
   it('uses an explicit ANTHROPIC_MODEL when set', () => {
     const result = buildAppConfig(buildEnv({ ANTHROPIC_MODEL: 'claude-opus-4-8' }));
     expect(result.anthropicModel).toBe('claude-opus-4-8');
+  });
+
+  it('treats a missing OPENAI_API_KEY as "no key configured", not an error', () => {
+    const result = buildAppConfig(buildEnv({ AI_PROVIDER: 'openai' }));
+    expect(result.openaiApiKey).toBeUndefined();
+  });
+
+  it('treats an empty OPENAI_API_KEY as "no key configured", not an error', () => {
+    const result = buildAppConfig(buildEnv({ AI_PROVIDER: 'openai', OPENAI_API_KEY: '' }));
+    expect(result.openaiApiKey).toBeUndefined();
+  });
+
+  it('treats a whitespace-only OPENAI_API_KEY as "no key configured"', () => {
+    const result = buildAppConfig(buildEnv({ AI_PROVIDER: 'openai', OPENAI_API_KEY: '   ' }));
+    expect(result.openaiApiKey).toBeUndefined();
+  });
+
+  it('defaults openaiModel to a centralized, documented default when OPENAI_MODEL is unset', () => {
+    const result = buildAppConfig(buildEnv());
+    expect(result.openaiModel).toBe('gpt-5.1');
+  });
+
+  it('uses an explicit OPENAI_MODEL when set', () => {
+    const result = buildAppConfig(buildEnv({ OPENAI_MODEL: 'gpt-5.1-mini' }));
+    expect(result.openaiModel).toBe('gpt-5.1-mini');
+  });
+
+  it('keeps anthropic and openai configuration fully independent of each other', () => {
+    const result = buildAppConfig(
+      buildEnv({
+        AI_PROVIDER: 'openai',
+        ANTHROPIC_API_KEY: 'sk-ant-unused',
+        OPENAI_API_KEY: 'sk-openai-used',
+      }),
+    );
+    expect(result.aiProvider).toBe('openai');
+    expect(result.openaiApiKey).toBe('sk-openai-used');
+    expect(result.anthropicApiKey).toBe('sk-ant-unused');
   });
 
   it('defaults allowMockFallback to false when ALLOW_MOCK_FALLBACK is unset', () => {

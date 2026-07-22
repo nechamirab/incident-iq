@@ -3,12 +3,18 @@ import { config as defaultConfig, type AppConfig } from '../../config/env.js';
 import { AnthropicAIProvider } from './AnthropicAIProvider.js';
 import type { AIProvider } from './AIProvider.js';
 import { MockAIProvider } from './MockAIProvider.js';
+import { OpenAIProvider } from './OpenAIProvider.js';
 import { resolveProviderSelection } from './resolveProviderSelection.js';
 
 /** The subset of {@link AppConfig} needed to build a concrete provider instance. */
 export type CreateAIProviderConfig = Pick<
   AppConfig,
-  'aiProvider' | 'anthropicApiKey' | 'anthropicModel' | 'allowMockFallback'
+  | 'aiProvider'
+  | 'anthropicApiKey'
+  | 'anthropicModel'
+  | 'openaiApiKey'
+  | 'openaiModel'
+  | 'allowMockFallback'
 >;
 
 /**
@@ -17,8 +23,8 @@ export type CreateAIProviderConfig = Pick<
  * is the *only* place in the codebase that chooses a concrete provider --
  * `createApp` calls it once and injects the result into every route, so
  * every AI-invoking service depends solely on the {@link AIProvider}
- * interface and never instantiates `MockAIProvider`/`AnthropicAIProvider`
- * itself.
+ * interface and never instantiates `MockAIProvider`/`AnthropicAIProvider`/
+ * `OpenAIProvider` itself.
  *
  * Accepts an optional config override (defaulting to the real resolved
  * `config`) purely so tests can exercise every selection scenario without
@@ -43,12 +49,57 @@ export function createAIProvider(config: CreateAIProviderConfig = defaultConfig)
       // AnthropicAIProvider's own doc comment for why that's deliberate.
       return new AnthropicAIProvider(config.anthropicApiKey, config.anthropicModel);
 
+    case 'openai':
+    case 'openai-not-configured':
+      // Same reasoning as the anthropic/anthropic-not-configured pair above.
+      return new OpenAIProvider(config.openaiApiKey, config.openaiModel);
+
     case 'mock-fallback':
-      return new MockAIProvider({ configuredProvider: 'anthropic', reason: selection.reason });
+      return new MockAIProvider({ configuredProvider: config.aiProvider, reason: selection.reason });
 
     default: {
       const exhaustiveCheck: never = selection;
       throw new Error(`Unhandled provider selection: ${JSON.stringify(exhaustiveCheck)}`);
+    }
+  }
+}
+
+/**
+ * The model configured for whichever provider `AI_PROVIDER` actually
+ * selects -- `null` for `mock`, which has no configurable model (its
+ * `model` identifier is a fixed constant on `MockAIProvider` itself).
+ */
+function resolveConfiguredModel(
+  config: Pick<AppConfig, 'aiProvider' | 'anthropicModel' | 'openaiModel'>,
+): string | null {
+  switch (config.aiProvider) {
+    case 'anthropic':
+      return config.anthropicModel;
+    case 'openai':
+      return config.openaiModel;
+    case 'mock':
+      return null;
+    default: {
+      const exhaustiveCheck: never = config.aiProvider;
+      throw new Error(`Unhandled AI provider: ${JSON.stringify(exhaustiveCheck)}`);
+    }
+  }
+}
+
+/** Whether the API key relevant to the *currently configured* provider is present -- irrelevant keys for other providers (e.g. a leftover `ANTHROPIC_API_KEY` while `AI_PROVIDER=openai`) are never reported here. */
+function resolveApiKeyConfigured(
+  config: Pick<AppConfig, 'aiProvider' | 'anthropicApiKey' | 'openaiApiKey'>,
+): boolean {
+  switch (config.aiProvider) {
+    case 'anthropic':
+      return Boolean(config.anthropicApiKey);
+    case 'openai':
+      return Boolean(config.openaiApiKey);
+    case 'mock':
+      return false;
+    default: {
+      const exhaustiveCheck: never = config.aiProvider;
+      throw new Error(`Unhandled AI provider: ${JSON.stringify(exhaustiveCheck)}`);
     }
   }
 }
@@ -63,12 +114,13 @@ export function createAIProvider(config: CreateAIProviderConfig = defaultConfig)
  * @param provider The provider instance actually in use (from `createAIProvider`).
  */
 export function getAiProviderDiagnostics(
-  config: Pick<AppConfig, 'aiProvider' | 'anthropicApiKey' | 'allowMockFallback'>,
+  config: Pick<AppConfig, 'aiProvider' | 'anthropicApiKey' | 'anthropicModel' | 'openaiApiKey' | 'openaiModel' | 'allowMockFallback'>,
   provider: AIProvider,
 ): AiProviderDiagnostics {
   return {
     configuredProvider: config.aiProvider,
-    apiKeyConfigured: Boolean(config.anthropicApiKey),
+    apiKeyConfigured: resolveApiKeyConfigured(config),
+    configuredModel: resolveConfiguredModel(config),
     mockFallbackEnabled: config.allowMockFallback,
     providerVerified: provider.providerVerified,
   };

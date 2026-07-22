@@ -21,6 +21,9 @@ export interface AppConfig {
   /** `undefined` when unset *or* set to an empty/whitespace-only string -- both mean "no key configured". */
   anthropicApiKey: string | undefined;
   anthropicModel: string;
+  /** `undefined` when unset *or* set to an empty/whitespace-only string -- both mean "no key configured". */
+  openaiApiKey: string | undefined;
+  openaiModel: string;
   /**
    * Whether `createAIProvider` may fall back to `MockAIProvider` when
    * `AI_PROVIDER=anthropic` but no API key is configured. Defaults to
@@ -31,6 +34,14 @@ export interface AppConfig {
 }
 
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5';
+/**
+ * Centralized, explicitly-documented default for `OPENAI_MODEL`, mirroring
+ * {@link DEFAULT_ANTHROPIC_MODEL}. Verified against the model identifiers
+ * the installed `openai` SDK (v6.48.0) actually knows about
+ * (`Shared.ResponsesModel`) at the time this default was chosen -- a
+ * current general-purpose flagship, not a deprecated/legacy model name.
+ */
+const DEFAULT_OPENAI_MODEL = 'gpt-5.1';
 
 /**
  * Validates the shape of every environment variable this backend reads.
@@ -38,26 +49,29 @@ const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5';
  * strings-or-absent) -- the *meaning* of "missing" differs per field and is
  * resolved in {@link buildAppConfig}, not here:
  *
- * - `AI_PROVIDER`, if set, must be exactly `"mock"` or `"anthropic"` --
- *   anything else (a typo, an unsupported provider name) is a hard
- *   configuration error, since silently coercing an unrecognized value to
- *   `"mock"` would be exactly the kind of silent AI-mode substitution this
- *   configuration is meant to prevent.
+ * - `AI_PROVIDER`, if set, must be exactly `"mock"`, `"anthropic"`, or
+ *   `"openai"` -- anything else (a typo, an unsupported provider name) is a
+ *   hard configuration error, since silently coercing an unrecognized value
+ *   to `"mock"` would be exactly the kind of silent AI-mode substitution
+ *   this configuration is meant to prevent.
  * - `ALLOW_MOCK_FALLBACK`, if set, must be exactly `"true"` or `"false"` --
  *   any other value (`"yes"`, `"1"`, ...) is rejected rather than guessed at.
- * - `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` accept any string, including
- *   empty -- an empty key is treated the same as an absent one downstream,
- *   never as a schema-validation failure (a blank `.env` line is normal).
+ * - `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`/`OPENAI_API_KEY`/`OPENAI_MODEL`
+ *   accept any string, including empty -- an empty key is treated the same
+ *   as an absent one downstream, never as a schema-validation failure (a
+ *   blank `.env` line is normal), regardless of which provider is selected.
  */
 const EnvSchema = z.object({
   PORT: z.string().optional(),
   NODE_ENV: z.string().optional(),
   CORS_ORIGIN: z.string().optional(),
-  AI_PROVIDER: z.enum(['mock', 'anthropic'], {
-    message: 'AI_PROVIDER must be "mock" or "anthropic" (unsupported AI provider).',
+  AI_PROVIDER: z.enum(['mock', 'anthropic', 'openai'], {
+    message: 'AI_PROVIDER must be "mock", "anthropic", or "openai" (unsupported AI provider).',
   }).optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().optional(),
   ALLOW_MOCK_FALLBACK: z
     .enum(['true', 'false'], {
       message: 'ALLOW_MOCK_FALLBACK must be exactly "true" or "false" (invalid boolean configuration).',
@@ -80,8 +94,9 @@ function resolveNodeEnv(value: string | undefined): AppConfig['nodeEnv'] {
  *
  * @param env The raw environment to read from (normally `process.env`).
  * @throws {Error} if `AI_PROVIDER` or `ALLOW_MOCK_FALLBACK` is set to an
- * unsupported/malformed value. A missing or empty `ANTHROPIC_API_KEY` is
- * never an error here -- see {@link AppConfig.anthropicApiKey}'s doc comment.
+ * unsupported/malformed value. A missing or empty `ANTHROPIC_API_KEY`/
+ * `OPENAI_API_KEY` is never an error here -- see
+ * {@link AppConfig.anthropicApiKey}'s doc comment.
  */
 export function buildAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   const parsed = EnvSchema.safeParse(env);
@@ -92,6 +107,7 @@ export function buildAppConfig(env: NodeJS.ProcessEnv): AppConfig {
 
   const raw = parsed.data;
   const anthropicApiKey = raw.ANTHROPIC_API_KEY?.trim();
+  const openaiApiKey = raw.OPENAI_API_KEY?.trim();
 
   return {
     port: Number(raw.PORT ?? 4001),
@@ -100,6 +116,8 @@ export function buildAppConfig(env: NodeJS.ProcessEnv): AppConfig {
     aiProvider: raw.AI_PROVIDER ?? 'mock',
     anthropicApiKey: anthropicApiKey && anthropicApiKey.length > 0 ? anthropicApiKey : undefined,
     anthropicModel: raw.ANTHROPIC_MODEL ?? DEFAULT_ANTHROPIC_MODEL,
+    openaiApiKey: openaiApiKey && openaiApiKey.length > 0 ? openaiApiKey : undefined,
+    openaiModel: raw.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL,
     allowMockFallback: raw.ALLOW_MOCK_FALLBACK === 'true',
   };
 }

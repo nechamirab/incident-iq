@@ -41,6 +41,7 @@ async function runAnalysisWithRetry(incident: Incident, provider: AIProvider): P
     configuredProvider: provider.configuredProvider,
     fallbackUsed: provider.fallbackUsed,
     fallbackReason: provider.fallbackReason,
+    providerRequestId: provider.providerRequestId,
   });
 }
 

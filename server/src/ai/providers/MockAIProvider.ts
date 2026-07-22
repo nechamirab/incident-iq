@@ -645,6 +645,8 @@ export class MockAIProvider implements AIProvider {
   readonly fallbackReason: string | null;
   /** Verification isn't a meaningful concept for a provider with no external API to reach. */
   readonly providerVerified = null;
+  /** No external API is ever called, so there is no request id to report. */
+  readonly providerRequestId = null;
 
   constructor(fallbackInfo?: MockFallbackInfo) {
     this.configuredProvider = fallbackInfo?.configuredProvider ?? 'mock';

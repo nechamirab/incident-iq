@@ -7,7 +7,7 @@ import { RecommendedActionSchema } from './action.schema.js';
 import { TimelineEventSchema } from './timeline.schema.js';
 
 /** Which AI backend produced (or will produce) an analysis run. */
-export const AiProviderNameSchema = z.enum(['mock', 'anthropic']);
+export const AiProviderNameSchema = z.enum(['mock', 'anthropic', 'openai']);
 
 export const AnalysisRunStatusSchema = z.enum(['pending', 'completed', 'failed']);
 
@@ -46,6 +46,8 @@ export const AnalysisRunSchema = z.object({
   fallbackUsed: z.boolean().optional(),
   /** Human-readable explanation of why fallback occurred; `null`/absent when `fallbackUsed` is not `true`. */
   fallbackReason: z.string().nullable().optional(),
+  /** A safe, provider-issued request id (e.g. from OpenAI's `x-request-id` header), when the provider exposes one -- never an auth header or other secret. `null`/absent when not available (e.g. mock, or a provider that doesn't track one). */
+  providerRequestId: z.string().nullable().optional(),
   summary: AnalysisRunSummarySchema,
   timeline: z.array(TimelineEventSchema),
   facts: z.array(ReasoningItemSchema),

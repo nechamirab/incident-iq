@@ -58,6 +58,15 @@ export interface AIProvider {
    * after an actual successful call, never merely because a key is present.
    */
   readonly providerVerified: boolean | null;
+  /**
+   * A safe, provider-issued identifier for the most recent completed
+   * request (e.g. OpenAI's `x-request-id`), useful for debugging a specific
+   * call with the provider's own support/logs -- never an auth header or
+   * any other secret. `null` when the provider doesn't expose one (mock;
+   * currently also Anthropic, which this codebase doesn't yet extract a
+   * request id from) or before any request has completed.
+   */
+  readonly providerRequestId: string | null;
 
   /**
    * Requests one completion from the model and returns its raw text

@@ -54,6 +54,8 @@ export class AnthropicAIProvider implements AIProvider {
   readonly configuredProvider: AiProviderName = 'anthropic';
   readonly fallbackUsed = false;
   readonly fallbackReason = null;
+  /** Not currently extracted from the Anthropic SDK response -- out of scope for this provider today. */
+  readonly providerRequestId = null;
 
   private readonly client: Anthropic | null;
   private verified = false;

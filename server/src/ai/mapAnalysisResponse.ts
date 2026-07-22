@@ -23,6 +23,7 @@ export interface MapAnalysisResponseParams {
   configuredProvider?: AiProviderName;
   fallbackUsed?: boolean;
   fallbackReason?: string | null;
+  providerRequestId?: string | null;
 }
 
 /**
@@ -46,6 +47,7 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
     configuredProvider = providerName,
     fallbackUsed = false,
     fallbackReason = null,
+    providerRequestId = null,
   } = params;
 
   const knownEvidenceIds = new Set(incident.evidence.map((item) => item.id));
@@ -155,6 +157,7 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
     configuredProvider,
     fallbackUsed,
     fallbackReason,
+    providerRequestId,
     status: 'completed',
     summary: response.summary,
     timeline,

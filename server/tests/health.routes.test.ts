@@ -6,6 +6,7 @@ import { InMemoryIncidentRepository } from '../src/repositories/InMemoryIncident
 import { sampleIncidents } from '../src/data/incidents/index.js';
 import { MockAIProvider } from '../src/ai/providers/MockAIProvider.js';
 import { AnthropicAIProvider } from '../src/ai/providers/AnthropicAIProvider.js';
+import { OpenAIProvider } from '../src/ai/providers/OpenAIProvider.js';
 import type { AIProvider } from '../src/ai/providers/AIProvider.js';
 import type { ApiResponse } from '../../shared/types/apiResponse.js';
 import type { HealthCheckResult } from '../../shared/types/health.js';
@@ -39,7 +40,7 @@ describe('GET /api/health', () => {
     expect(ai?.providerVerified).toBeNull();
   });
 
-  it('reports apiKeyConfigured: true and providerVerified: false for an unverified Anthropic provider', async () => {
+  it('reports providerVerified: false for an unverified Anthropic provider', async () => {
     const provider = new AnthropicAIProvider(FAKE_KEY, 'claude-sonnet-5');
     const response = await request(buildApp(provider)).get('/api/health');
     const ai = body<HealthCheckResult>(response).data?.ai;
@@ -49,11 +50,36 @@ describe('GET /api/health', () => {
     expect(ai?.providerVerified).toBe(false);
   });
 
+  it('reports providerVerified: false for an unverified OpenAI provider', async () => {
+    const provider = new OpenAIProvider(FAKE_KEY, 'gpt-5.1');
+    const response = await request(buildApp(provider)).get('/api/health');
+    const ai = body<HealthCheckResult>(response).data?.ai;
+
+    expect(ai?.providerVerified).toBe(false);
+  });
+
+  it('never includes an OpenAI API key, in any form, in the response body', async () => {
+    const provider = new OpenAIProvider(FAKE_KEY, 'gpt-5.1');
+    const response = await request(buildApp(provider)).get('/api/health');
+    expect(JSON.stringify(response.body)).not.toContain(FAKE_KEY);
+  });
+
   it('reports configuredProvider and mockFallbackEnabled from the resolved app config', async () => {
     const response = await request(buildApp()).get('/api/health');
     const ai = body<HealthCheckResult>(response).data?.ai;
     expect(typeof ai?.configuredProvider).toBe('string');
     expect(typeof ai?.mockFallbackEnabled).toBe('boolean');
+  });
+
+  it('reports configuredModel as either a non-empty string or null, matching apiKeyConfigured\'s applicability', async () => {
+    // Diagnostics are driven by this process's actual resolved config (not
+    // the injected provider instance -- see the tests below), so this only
+    // asserts the field's shape, not a specific value; `getAiProviderDiagnostics`
+    // in createAIProvider.test.ts covers the precise mock/anthropic/openai
+    // mapping deterministically, independent of the real environment.
+    const response = await request(buildApp()).get('/api/health');
+    const ai = body<HealthCheckResult>(response).data?.ai;
+    expect(ai?.configuredModel === null || typeof ai?.configuredModel === 'string').toBe(true);
   });
 
   it('never includes the API key, in any form, in the response body', async () => {
