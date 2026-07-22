@@ -8,17 +8,23 @@ The system is designed to always separate **facts** (directly supported by evide
 **assumptions** (plausible but unproven), **hypotheses** (explanations requiring testing), and
 **actions** (concrete next steps). It never presents a hypothesis as a confirmed root cause.
 
-> **Status:** Stage 7 — Reasoning Risks and Actions. Stage 1 established the frontend/backend
-> skeleton; Stage 2 added the domain model and mock data; Stage 3 made incident creation and file
-> upload real; Stage 4 built the AI analysis pipeline; Stage 5 made the Incident Workspace real
-> (Overview, Evidence, Facts & Assumptions); Stage 6 added Timeline and Hypotheses. Stage 7 fills
-> in the last two data-driven tabs — Reasoning Risks (cognitive biases/fallacies the analysis
-> flags about *itself*, never every known bias unconditionally) and Recommended Actions (ordered
-> by priority, each concrete and evidence-grounded) — and, unlike Stage 6, needed real backend
-> work: `MockAIProvider`'s bias detection was strengthened to reliably surface at least three
-> relevant risks (the spec's bar), and its recommended-action descriptions were rewritten to name
-> a specific metric, time window, or comparison instead of generic advice like "investigate
-> further". AI Review and Postmortem remain named placeholders for Stages 8–9.
+> **Status:** Stage 8 — Critical AI Review. Stage 1 established the frontend/backend skeleton;
+> Stage 2 added the domain model and mock data; Stage 3 made incident creation and file upload
+> real; Stage 4 built the AI analysis pipeline; Stage 5 made the Incident Workspace real (Overview,
+> Evidence, Facts & Assumptions); Stage 6 added Timeline and Hypotheses; Stage 7 added Reasoning
+> Risks and Recommended Actions. Stage 8 adds a second, independent AI pass — a **skeptic
+> review** that challenges the leading hypothesis of an incident's latest analysis run, surfaces
+> alternative explanations, names evidence the original analysis never cited, assesses
+> confirmation-bias risk, states what would falsify the leading hypothesis, and recommends
+> further tests. It never overwrites or modifies the original analysis; it is always a separate,
+> additional record. This introduced a new domain entity (`SkepticReview`), a new versioned prompt
+> (`skeptic-review-v1`), a second AI-facing response schema, and a new `POST
+> /api/incidents/:incidentId/skeptic-review` endpoint — all reusing the same provider-agnostic,
+> validate-then-retry-once pipeline `analysisService` established in Stage 4 (now factored into a
+> shared `runProviderWithRetry` helper both services call). The AI Review tab shows the latest
+> run's audit information, a comparison across every analysis run performed on the incident, every
+> skeptic review, and lets a human reviewer record their own notes on each one. Postmortem remains
+> a named placeholder for Stage 9.
 
 ## Architecture
 
@@ -105,12 +111,44 @@ While a request is in flight the incident's status is `analyzing`; it becomes
 `under-investigation` on success, or reverts to whatever it was before on any failure — an
 incident is never left stuck in a transient state.
 
+### Skeptic review
+
+`POST /api/incidents/:incidentId/skeptic-review` (`server/src/services/skepticReviewService.ts`)
+runs a second, independent AI pass that critically challenges the **latest** analysis run's
+leading (highest-confidence) hypothesis, and persists the result as a new `SkepticReview` — never
+modifying the original `AnalysisRun`. It reuses the same provider-agnostic pipeline as the main
+analysis, factored out into a shared `runProviderWithRetry` helper (`ai/runProviderWithRetry.ts`)
+so both services get identical JSON-extraction, schema-validation, and one-shot-repair behavior
+without duplicating it:
+
+- **`skeptic-review-v1`** (`ai/prompts/skepticReviewV1.ts`) — tells the model exactly which
+  hypothesis is leading (computed by the backend, not left for the model to determine) and asks it
+  to challenge that hypothesis specifically: search for alternative explanations, assess
+  confirmation-bias risk, state what would falsify it, and recommend further tests — never simply
+  restate or validate the original analysis.
+- **AI-facing schema** (`ai/schemas/skepticReviewResponse.schema.ts`) deliberately omits
+  `challengedHypothesisId` and `ignoredEvidenceIds` entirely. Both are facts the backend can
+  determine with certainty before it even calls the model — the leading hypothesis by comparing
+  confidence scores, and "ignored" evidence by checking which evidence ids the original run never
+  cited anywhere (facts, assumptions, timeline, hypotheses, reasoning risks, or actions) — so
+  trusting the AI for either would only add a class of possible hallucination with no benefit.
+  `mapSkepticReviewResponse.ts` computes and attaches both itself; the AI supplies only the
+  qualitative critique.
+- **`MockAIProvider`**'s skeptic-review output is exactly as deterministic and evidence-grounded as
+  its main analysis: it names the leading hypothesis and its confidence, checks whether that
+  hypothesis's supporting evidence leans on one dominant source type (and says so if it does), and
+  reframes the run's other hypotheses as alternatives worth reconsidering.
+- **Human notes** — `PATCH /api/incidents/:incidentId/skeptic-reviews/:reviewId/notes` lets a
+  reviewer record their own take on a skeptic review, stored separately from (and never
+  overwriting) its AI-generated content.
+
 ### Incident Workspace
 
 `/incidents/:incidentId` (`IncidentWorkspacePage`) is a tabbed layout listing all nine sections
-the finished app will have (`src/constants/workspaceSections.ts`); sections not yet built render a
-named placeholder ("AI Review is not implemented yet... Stage 8") rather than being hidden, so the
-intended navigation is visible end to end. Seven sections are fully implemented:
+the finished app will have (`src/constants/workspaceSections.ts`); the one section not yet built
+(Postmortem) renders a named placeholder ("Postmortem is not implemented yet... Stage 9") rather
+than being hidden, so the intended navigation is visible end to end. Eight sections are fully
+implemented:
 
 - **Overview** — the incident description, plus the *latest* analysis run's summary, impact,
   affected components, uncertainty statement, validation warnings, and provenance
@@ -151,11 +189,19 @@ intended navigation is visible end to end. Seven sections are fully implemented:
   alongside, since an action's motivation is often "this would help answer an open question" —
   the schema has no id-level link between the two (open questions are plain strings), so this is a
   presentational connection, not a foreign key.
+- **AI Review** — the latest run's audit information (provider/model/prompt version/timestamp/
+  duration, validation warnings, unsupported claims); a run-comparison table across every analysis
+  run performed on the incident (hidden behind a one-line note when only one run exists, since
+  there's nothing yet to compare); a "Run skeptic review" action; and every skeptic review of the
+  latest run — its challenge summary, alternative explanations, evidence the original analysis
+  never cited (as clickable chips, like everywhere else), confirmation-bias assessment,
+  falsification test, further recommended tests, overall assessment, its own provenance, and an
+  editable notes field a human reviewer can save independently of the AI-generated content.
 
-Every evidence id shown anywhere in Timeline, Hypotheses, Reasoning Risks, or Recommended Actions
-(`EvidenceReferenceChips`) is a clickable chip that jumps to the Evidence tab with that id
-pre-filled into the search box — a cited piece of evidence is always one click away from the claim
-that cites it.
+Every evidence id shown anywhere in Timeline, Hypotheses, Reasoning Risks, Recommended Actions, or
+AI Review (`EvidenceReferenceChips`) is a clickable chip that jumps to the Evidence tab with that
+id pre-filled into the search box — a cited piece of evidence is always one click away from the
+claim that cites it.
 
 Search text, the active evidence-type filter, and the active tab are held in `useWorkspaceStore`
 (Zustand) — genuinely client-only UI state, reset whenever the user navigates to a different
@@ -221,11 +267,13 @@ incident-iq/
     components/incidents/  # NewIncidentForm, LoadSampleIncidentButton, IncidentCreatedPanel
     components/evidence/   # EvidenceCard, FileUploadZone (drag-drop, preview, remove)
     components/workspace/  # WorkspaceHeader, Overview/Evidence/Timeline/Hypotheses/FactsAssumptions/
-                            # ReasoningRisks/RecommendedActions sections, HypothesisCard, ConfidenceIndicator,
-                            # EvidenceReferenceChips, ReviewStatusControl, PlaceholderSection
+                            # ReasoningRisks/RecommendedActions/AIReview sections, HypothesisCard,
+                            # ConfidenceIndicator, EvidenceReferenceChips, ReviewStatusControl,
+                            # RunComparisonTable, SkepticReviewCard, PlaceholderSection
     components/common/     # ControlledTextField, CopyButton
     pages/                 # Route-level page components
-    hooks/                 # React hooks (useIncident(s), useCreateIncident, useAnalyzeIncident, useReviewStatement, ...)
+    hooks/                 # React hooks (useIncident(s), useCreateIncident, useAnalyzeIncident,
+                            # useReviewStatement, useRunSkepticReview, useUpdateSkepticReviewNotes, ...)
     services/              # Typed API clients (incidentService, analysisService, ...)
     store/                 # Zustand: workspace UI state only (active tab, evidence search/filter)
     schemas/               # Frontend-only Zod schemas (New Incident form)
@@ -241,16 +289,20 @@ incident-iq/
       routes/               # Route definitions
       middleware/           # Error handling, 404 handling, Multer upload, Zod body validation
       parsers/              # Text/JSON/CSV evidence parsers + extension dispatcher
-      services/             # evidenceService, incidentService, analysisService
-      schemas/              # Server-only request schemas (incident intake, statement review)
+      services/             # evidenceService, incidentService, analysisService, skepticReviewService
+      schemas/              # Server-only request schemas (incident intake, statement review,
+                            # skeptic review notes)
       repositories/         # IncidentRepository interface + in-memory implementation
       data/incidents/       # Bundled synthetic sample incidents
       ai/
         providers/           # AIProvider interface, MockAIProvider, AnthropicAIProvider, factory
-        prompts/              # Versioned prompts (incident-analysis-v1, repair-invalid-json-v1)
-        schemas/              # AI-facing structured-output Zod schema
+        prompts/              # Versioned prompts (incident-analysis-v1, skeptic-review-v1,
+                              # repair-invalid-json-v1)
+        schemas/              # AI-facing structured-output Zod schemas (analysis, skeptic review)
         validators/           # JSON/schema validation, evidence-reference and unsupported-claim checks
-        mapAnalysisResponse.ts # Validated AI response -> persisted AnalysisRun
+        mapAnalysisResponse.ts       # Validated AI response -> persisted AnalysisRun
+        mapSkepticReviewResponse.ts  # Validated AI response -> persisted SkepticReview
+        runProviderWithRetry.ts      # Shared validate-then-retry-once orchestration
       utils/                # ApiError, id generation, text normalization, input hashing
     tests/                 # Vitest + Supertest (schemas, parsers, services, AI pipeline, API routes)
   shared/
@@ -326,8 +378,9 @@ shows the summary/impact/uncertainty statement, Evidence is searchable/filterabl
 chronological events with confidence-labeled timestamps, Hypotheses shows every candidate
 explanation ranked by confidence with supporting/contradicting evidence, Facts & Assumptions lets
 you mark any statement's review status, Reasoning Risks shows the biases this specific analysis
-flagged about itself, and Recommended Actions shows concrete next steps ordered by priority.
-Clicking any evidence id chip anywhere jumps straight to that evidence item.
+flagged about itself, Recommended Actions shows concrete next steps ordered by priority, and AI
+Review lets you run a skeptic review that challenges the leading hypothesis and record your own
+notes on it. Clicking any evidence id chip anywhere jumps straight to that evidence item.
 
 ## Building
 
@@ -353,23 +406,26 @@ npm run test:client   # frontend only (Vitest, node environment)
 npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-289 tests total:
+350 tests total:
 
-- **Backend** (`server/tests/`, 205 tests) — everything from prior stages, plus this stage's
-  `MockAIProvider` coverage: at least three reasoning risks for all three sample incidents *and* a
-  minimal one-evidence-item incident; each new heuristic firing under its specific condition and
-  *not* firing when that condition is absent (e.g. `base-rate-neglect` does not fire for a
-  richly-evidenced sample, `anchoring-bias` does not fire when `startedAt` is unknown,
-  `post-hoc-fallacy` only fires when deployment-note evidence exists); every recommended action's
-  description checked against a banned-generic-phrase list ("investigate further", "check the
-  logs", "debug the issue") and required to name a concrete time window or count; and a
-  database-check action's description specifically confirmed to mention connection-pool/query
-  metrics.
-- **Frontend** (`tests/`, 84 tests) — everything from prior stages, plus `sortActionsByPriority`
-  (immediate → high → medium → low, non-mutating, stable for equal priorities) and
-  `statusDisplay`'s new bias-type, risk-level, action-priority, action-category, and action-status
-  mappings (asserting all eight bias types get distinct non-empty labels, `immediate` priority and
-  `high` risk both map to the error color, `completed` status maps to success).
+- **Backend** (`server/tests/`, 260 tests) — everything from prior stages, plus this stage's
+  skeptic-review pipeline coverage: `SkepticReviewSchema` validation; `validateSkepticReviewResponse`
+  (JSON extraction/repair-fence handling, and confirming the AI's response is never required or
+  allowed to supply `challengedHypothesisId`/`ignoredEvidenceIds`); `buildSkepticReviewPrompt`
+  naming the correct leading hypothesis and every evidence id; `mapAiResponseToSkepticReview`
+  computing `challengedHypothesisId` and `ignoredEvidenceIds` itself rather than trusting the AI,
+  across every sample incident; `MockAIProvider`'s skeptic-review generation (deterministic,
+  schema-valid for every sample, names the leading hypothesis, reframes other hypotheses as
+  alternatives, falls back gracefully when a hypothesis has no resolvable supporting evidence or no
+  siblings); `skepticReviewService` (success, retry-with-repair, both-attempts-invalid, 404 missing
+  incident, 400 when no analysis run exists yet, always reviewing the *latest* run, never mutating
+  the original run, passing the run as completion context); the `POST .../skeptic-review` and
+  `PATCH .../skeptic-reviews/:reviewId/notes` routes end to end; and the new
+  `addSkepticReview`/`updateSkepticReviewNotes` repository methods.
+- **Frontend** (`tests/`, 90 tests) — everything from prior stages, plus `summarizeAnalysisRuns`
+  (the AI Review tab's run-comparison table logic: preserves run order, carries provenance through
+  unchanged, finds the highest hypothesis confidence per run, and returns `null` rather than `-Infinity`
+  when a run has no hypotheses).
 
 Full component-level React Testing Library tests are introduced in Stage 10 — the workspace UI is
 exercised via its underlying pure logic and via live API smoke tests against a running server, not
@@ -377,10 +433,13 @@ by rendering React components in a test runner. `AnthropicAIProvider` is still n
 against the live Anthropic API (no network calls in tests, no API key available in this
 environment).
 
-## Known limitations (Stage 7)
+## Known limitations (Stage 8)
 
-- Two of the nine workspace tabs (AI Review, Postmortem) remain placeholders naming the stage that
-  builds them (8–9).
+- One of the nine workspace tabs (Postmortem) remains a placeholder naming the stage that builds
+  it (9).
+- A skeptic review always reviews the incident's *latest* analysis run; there is no way to request
+  a skeptic review of an older run once a newer one exists, matching how every other workspace tab
+  already treats "the latest run" as authoritative.
 - Recommended Actions and open investigation questions are shown together in the same tab, but
   there is no id-level link between a specific action and a specific question — `openQuestions` is
   a plain `string[]` on `AnalysisRun`, not a list of objects with ids, matching the original data
@@ -389,10 +448,13 @@ environment).
   implemented (unchanged from Stage 4) — evidence is sent to Anthropic as-is when
   `AI_PROVIDER=anthropic`.
 - No full-page/component-level frontend test suite (React Testing Library) yet, and no browser
-  tool is available in this environment to click through the new Reasoning Risks/Recommended
-  Actions UI — typecheck, lint, the full test suite, and a production build were all verified, plus
-  a live smoke test against the running server confirming all three sample incidents each produce
-  4 reasoning risks and 4 concrete, evidence-grounded recommended actions after analysis.
+  tool is available in this environment to click through the new AI Review UI — typecheck, lint,
+  the full test suite, and a production build were all verified, plus a live smoke test against the
+  running server confirming: analyze → skeptic review → notes PATCH all persist and link correctly
+  (`analysisRunId` and `challengedHypothesisId` both resolve to the right records), a second
+  analyze + skeptic review cycle populates the run-comparison table with two real rows, a 400 is
+  returned when a skeptic review is requested before any analysis exists, and a 404 is returned for
+  a missing incident.
 
 ## Roadmap
 

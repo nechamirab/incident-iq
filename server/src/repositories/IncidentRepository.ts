@@ -6,6 +6,7 @@ import type {
   UpdateIncidentInput,
 } from '../../../shared/types/incident.js';
 import type { ReviewStatus } from '../../../shared/types/reasoning.js';
+import type { SkepticReview } from '../../../shared/types/skepticReview.js';
 
 /**
  * Persistence contract for incidents. Controllers and services depend only
@@ -21,6 +22,19 @@ export interface IncidentRepository {
   delete(id: string): Promise<boolean>;
   addEvidence(incidentId: string, evidence: EvidenceItem[]): Promise<Incident | null>;
   addAnalysisRun(incidentId: string, run: AnalysisRun): Promise<Incident | null>;
+  addSkepticReview(incidentId: string, review: SkepticReview): Promise<Incident | null>;
+
+  /**
+   * Updates the human-recorded review notes on one skeptic review.
+   *
+   * @returns The updated incident, or `null` if the incident or the
+   * skeptic review (within it) could not be found.
+   */
+  updateSkepticReviewNotes(
+    incidentId: string,
+    reviewId: string,
+    humanNotes: string,
+  ): Promise<Incident | null>;
 
   /**
    * Updates the review status of one fact or assumption (a `ReasoningItem`

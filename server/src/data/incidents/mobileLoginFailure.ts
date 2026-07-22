@@ -28,6 +28,7 @@ export const mobileLoginFailureIncident: Incident = {
   createdAt: DETECTED_AT,
   updatedAt: DETECTED_AT,
   analysisRuns: [],
+  skepticReviews: [],
   evidence: [
     {
       id: `${INCIDENT_ID}-ev-01`,

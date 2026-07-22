@@ -1,3 +1,4 @@
+import type { AnalysisRun } from '../../../../shared/types/analysisRun.js';
 import type { Incident } from '../../../../shared/types/incident.js';
 import type { AiProviderName } from '../../../../shared/types/analysisRun.js';
 
@@ -8,15 +9,29 @@ export interface AIPrompt {
 }
 
 /**
+ * Extra structured data some prompts need beyond the incident itself, so a
+ * mock implementation can generate a deterministic response without parsing
+ * it back out of prompt text. A real provider ignores this entirely -- it
+ * only sends `prompt` to the model, which already embeds everything a real
+ * model needs in natural language.
+ */
+export interface AICompletionContext {
+  /** The analysis run being critiqued, for a skeptic-review request. */
+  analysisRun?: AnalysisRun;
+}
+
+/**
  * Provider-agnostic contract for anything that can produce an incident
- * analysis. `analysisService` (the only caller) depends solely on this
- * interface, never on a concrete provider, so switching `AI_PROVIDER` never
- * requires changing business logic or the UI.
+ * analysis or review. `analysisService`/`skepticReviewService` (the only
+ * callers) depend solely on this interface, never on a concrete provider,
+ * so switching `AI_PROVIDER` never requires changing business logic or the
+ * UI.
  *
  * `incident` is passed alongside the already-built `prompt` so a mock
  * implementation can generate a deterministic response directly from the
  * incident's evidence, without needing to parse it back out of prompt text.
- * A real provider ignores `incident` and only sends `prompt` to the model.
+ * A real provider ignores `incident`/`context` and only sends `prompt` to
+ * the model.
  */
 export interface AIProvider {
   readonly name: AiProviderName;
@@ -27,5 +42,5 @@ export interface AIProvider {
    * response, unparsed and unvalidated -- the caller is responsible for
    * extracting and validating JSON from it.
    */
-  complete(incident: Incident, prompt: AIPrompt): Promise<string>;
+  complete(incident: Incident, prompt: AIPrompt, context?: AICompletionContext): Promise<string>;
 }

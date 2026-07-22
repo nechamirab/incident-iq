@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Incident } from '../../../../shared/types/incident.js';
 import { ApiError } from '../../utils/ApiError.js';
-import type { AIPrompt, AIProvider } from './AIProvider.js';
+import type { AICompletionContext, AIPrompt, AIProvider } from './AIProvider.js';
 
 const MAX_OUTPUT_TOKENS = 4096;
 
@@ -27,7 +27,7 @@ export class AnthropicAIProvider implements AIProvider {
     this.client = apiKey ? new Anthropic({ apiKey }) : null;
   }
 
-  async complete(_incident: Incident, prompt: AIPrompt): Promise<string> {
+  async complete(_incident: Incident, prompt: AIPrompt, _context?: AICompletionContext): Promise<string> {
     if (!this.client) {
       throw new ApiError(
         503,

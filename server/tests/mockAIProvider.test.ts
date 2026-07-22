@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { MockAIProvider } from '../src/ai/providers/MockAIProvider.js';
 import { buildIncidentAnalysisPrompt } from '../src/ai/prompts/incidentAnalysisV1.js';
+import { buildSkepticReviewPrompt } from '../src/ai/prompts/skepticReviewV1.js';
 import { validateAIResponse } from '../src/ai/validators/validateAIResponse.js';
+import { validateSkepticReviewResponse } from '../src/ai/validators/validateSkepticReviewResponse.js';
 import { sampleIncidents } from '../src/data/incidents/index.js';
+import { buildAnalysisRun } from './helpers/analysisRunFixture.js';
+import type { AnalysisRun } from '../../shared/types/analysisRun.js';
 import type { Incident } from '../../shared/types/incident.js';
 
 function buildMinimalIncident(): Incident {
@@ -35,6 +39,7 @@ function buildMinimalIncident(): Incident {
       },
     ],
     analysisRuns: [],
+    skepticReviews: [],
   };
 }
 
@@ -261,5 +266,177 @@ describe('MockAIProvider', () => {
         expect(dbAction?.description.toLowerCase()).toMatch(/connection-pool|query latency/);
       }
     });
+  });
+});
+
+function buildBareRun(overrides: Partial<AnalysisRun> = {}): AnalysisRun {
+  const now = '2026-07-01T00:10:00Z';
+  return {
+    id: 'run-bare',
+    incidentId: 'incident-minimal',
+    provider: 'mock',
+    model: 'mock-deterministic-v1',
+    promptVersion: 'incident-analysis-v1',
+    createdAt: now,
+    inputHash: 'hash',
+    durationMs: 1,
+    status: 'completed',
+    summary: { text: 'Summary', affectedComponents: [], impact: 'Unknown' },
+    timeline: [],
+    facts: [],
+    assumptions: [],
+    hypotheses: [],
+    reasoningRisks: [],
+    recommendedActions: [],
+    openQuestions: [],
+    unsupportedClaims: [],
+    uncertaintyStatement: 'Test fixture.',
+    validationWarnings: [],
+    rawResponse: null,
+    ...overrides,
+  };
+}
+
+describe('MockAIProvider skeptic review', () => {
+  const provider = new MockAIProvider();
+
+  it('is deterministic: the same incident and run produce the same output', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    const prompt = buildSkepticReviewPrompt(incident, run);
+
+    const first = await provider.complete(incident, prompt, { analysisRun: run });
+    const second = await provider.complete(incident, prompt, { analysisRun: run });
+    expect(first).toBe(second);
+  });
+
+  it.each(sampleIncidents.map((incident) => [incident.title, incident] as const))(
+    'produces schema-valid output for a real analysis run of sample incident: %s',
+    async (_title, incident) => {
+      const run = buildAnalysisRun(incident, incident.evidence[0].id);
+      const prompt = buildSkepticReviewPrompt(incident, run);
+      const rawText = await provider.complete(incident, prompt, { analysisRun: run });
+      const result = validateSkepticReviewResponse(rawText);
+      expect(result.success, result.success ? undefined : result.issues).toBe(true);
+    },
+  );
+
+  it('challenges the leading (highest-confidence) hypothesis by name', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    const leading = [...run.hypotheses].sort((a, b) => b.confidence - a.confidence)[0];
+
+    const rawText = await provider.complete(incident, buildSkepticReviewPrompt(incident, run), {
+      analysisRun: run,
+    });
+    const result = validateSkepticReviewResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.challengeSummary).toContain(leading.title);
+      expect(result.data.falsificationTest.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('reframes the run\'s other hypotheses as alternative explanations', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    const nonLeading = [...run.hypotheses].sort((a, b) => b.confidence - a.confidence).slice(1);
+
+    const rawText = await provider.complete(incident, buildSkepticReviewPrompt(incident, run), {
+      analysisRun: run,
+    });
+    const result = validateSkepticReviewResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.alternativeExplanations).toHaveLength(nonLeading.length);
+      for (const hypothesis of nonLeading) {
+        expect(result.data.alternativeExplanations.some((text) => text.includes(hypothesis.title))).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it('falls back to a generic falsification test when the leading hypothesis cites no resolvable evidence', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildBareRun({
+      incidentId: incident.id,
+      hypotheses: [
+        {
+          id: 'h-1',
+          title: 'Untraceable hypothesis',
+          description: 'x',
+          confidence: 60,
+          confidenceReason: 'x',
+          supportingEvidenceIds: ['evidence-not-on-incident'],
+          contradictingEvidenceIds: [],
+          assumptions: [],
+          recommendedTest: 'x',
+          expectedResult: 'x',
+          status: 'proposed',
+        },
+        {
+          id: 'h-2',
+          title: 'Second hypothesis',
+          description: 'x',
+          confidence: 30,
+          confidenceReason: 'x',
+          supportingEvidenceIds: [],
+          contradictingEvidenceIds: [],
+          assumptions: [],
+          recommendedTest: 'x',
+          expectedResult: 'x',
+          status: 'proposed',
+        },
+      ],
+    });
+
+    const rawText = await provider.complete(incident, buildSkepticReviewPrompt(incident, run), {
+      analysisRun: run,
+    });
+    const result = validateSkepticReviewResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.falsificationTest).toContain('Untraceable hypothesis');
+    }
+  });
+
+  it('notes that no alternatives were proposed when the run has only one hypothesis', async () => {
+    const incident = sampleIncidents[0];
+    const run = buildBareRun({
+      incidentId: incident.id,
+      hypotheses: [
+        {
+          id: 'h-only',
+          title: 'Only hypothesis',
+          description: 'x',
+          confidence: 40,
+          confidenceReason: 'x',
+          supportingEvidenceIds: [],
+          contradictingEvidenceIds: [],
+          assumptions: [],
+          recommendedTest: 'x',
+          expectedResult: 'x',
+          status: 'proposed',
+        },
+      ],
+    });
+
+    const rawText = await provider.complete(incident, buildSkepticReviewPrompt(incident, run), {
+      analysisRun: run,
+    });
+    const result = validateSkepticReviewResponse(rawText);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.alternativeExplanations).toHaveLength(1);
+      expect(result.data.alternativeExplanations[0]).toMatch(/no alternative hypotheses/i);
+    }
+  });
+
+  it('falls back to producing the main analysis when no analysisRun context is given', async () => {
+    const incident = sampleIncidents[0];
+    const rawText = await provider.complete(incident, buildIncidentAnalysisPrompt(incident));
+    const result = validateAIResponse(rawText);
+    expect(result.success).toBe(true);
   });
 });

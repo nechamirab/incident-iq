@@ -1,5 +1,5 @@
 import type { Incident } from '../../../shared/types/incident.js';
-import type { AIPrompt, AIProvider } from '../../src/ai/providers/AIProvider.js';
+import type { AICompletionContext, AIPrompt, AIProvider } from '../../src/ai/providers/AIProvider.js';
 
 /**
  * Test double for {@link AIProvider}: returns a scripted sequence of raw
@@ -11,12 +11,14 @@ export class FakeAIProvider implements AIProvider {
   readonly model = 'fake-test-model';
 
   readonly promptsReceived: AIPrompt[] = [];
+  readonly contextsReceived: (AICompletionContext | undefined)[] = [];
   callCount = 0;
 
   constructor(private readonly responses: ReadonlyArray<string | Error>) {}
 
-  async complete(_incident: Incident, prompt: AIPrompt): Promise<string> {
+  async complete(_incident: Incident, prompt: AIPrompt, context?: AICompletionContext): Promise<string> {
     this.promptsReceived.push(prompt);
+    this.contextsReceived.push(context);
     const index = Math.min(this.callCount, this.responses.length - 1);
     this.callCount += 1;
 

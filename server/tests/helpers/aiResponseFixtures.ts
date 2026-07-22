@@ -1,4 +1,5 @@
 import type { AiAnalysisResponse } from '../../src/ai/schemas/aiAnalysisResponse.schema.js';
+import type { AiSkepticReviewResponse } from '../../src/ai/schemas/skepticReviewResponse.schema.js';
 
 /**
  * Builds a minimal, schema-valid {@link AiAnalysisResponse}. Tests override
@@ -78,6 +79,24 @@ export function buildValidAiResponse(
     openQuestions: ['Has this been reviewed by a human?'],
     unsupportedClaims: [],
     uncertaintyStatement: 'This analysis has known limitations.',
+    ...overrides,
+  };
+}
+
+/**
+ * Builds a minimal, schema-valid {@link AiSkepticReviewResponse}. Tests
+ * override only the fields they care about via `overrides`.
+ */
+export function buildValidSkepticReviewResponse(
+  overrides: Partial<AiSkepticReviewResponse> = {},
+): AiSkepticReviewResponse {
+  return {
+    challengeSummary: 'The leading hypothesis rests on a narrow slice of evidence.',
+    alternativeExplanations: ['Hypothesis two was not fully explored.'],
+    confirmationBiasAssessment: 'No contradicting evidence was actively sought.',
+    falsificationTest: 'If the pattern also appears during a known-healthy period, this is falsified.',
+    recommendedTests: ['Independently verify the supporting evidence.'],
+    overallAssessment: 'This does not confirm or reject the leading hypothesis.',
     ...overrides,
   };
 }

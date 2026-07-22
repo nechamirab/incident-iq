@@ -21,6 +21,7 @@ function buildIncident(overrides: Partial<Incident> = {}): Incident {
     updatedAt: '2026-06-14T14:41:00Z',
     evidence: [],
     analysisRuns: [],
+    skepticReviews: [],
     ...overrides,
   };
 }

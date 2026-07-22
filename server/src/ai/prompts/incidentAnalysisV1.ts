@@ -79,7 +79,8 @@ function buildSystemPrompt(): string {
   ].join('\n');
 }
 
-function formatEvidenceForPrompt(evidence: readonly EvidenceItem[]): string {
+/** Shared by every prompt builder that needs to list an incident's evidence for the model. */
+export function formatEvidenceForPrompt(evidence: readonly EvidenceItem[]): string {
   if (evidence.length === 0) {
     return '(no evidence attached)';
   }

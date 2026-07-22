@@ -4,6 +4,7 @@ import { sampleIncidents } from '../src/data/incidents/index.js';
 import type { CreateIncidentInput } from '../../shared/types/incident.js';
 import type { AnalysisRun } from '../../shared/types/analysisRun.js';
 import type { EvidenceItem } from '../../shared/types/evidence.js';
+import type { SkepticReview } from '../../shared/types/skepticReview.js';
 
 function buildCreateInput(overrides: Partial<CreateIncidentInput> = {}): CreateIncidentInput {
   return {
@@ -186,6 +187,83 @@ describe('InMemoryIncidentRepository', () => {
 
     const updated = await repository.addAnalysisRun('does-not-exist', run);
     expect(updated).toBeNull();
+  });
+
+  describe('addSkepticReview / updateSkepticReviewNotes', () => {
+    function buildReview(overrides: Partial<SkepticReview> = {}): SkepticReview {
+      return {
+        id: 'review-1',
+        incidentId: 'incident-review',
+        analysisRunId: 'run-1',
+        provider: 'mock',
+        model: 'mock-v1',
+        promptVersion: 'skeptic-review-v1',
+        createdAt: '2026-07-01T00:15:00Z',
+        durationMs: 5,
+        challengedHypothesisId: 'hypothesis-1',
+        challengeSummary: 'A challenge summary.',
+        alternativeExplanations: [],
+        ignoredEvidenceIds: [],
+        confirmationBiasAssessment: 'An assessment.',
+        falsificationTest: 'A falsification test.',
+        recommendedTests: [],
+        overallAssessment: 'An overall assessment.',
+        humanNotes: null,
+        rawResponse: null,
+        ...overrides,
+      };
+    }
+
+    it('appends a skeptic review to an incident', async () => {
+      const created = await repository.create(buildCreateInput());
+      const updated = await repository.addSkepticReview(created.id, {
+        ...buildReview(),
+        incidentId: created.id,
+      });
+
+      expect(updated?.skepticReviews).toHaveLength(1);
+      expect(updated?.skepticReviews[0]?.id).toBe('review-1');
+    });
+
+    it('returns null when adding a skeptic review to a missing incident', async () => {
+      const updated = await repository.addSkepticReview('does-not-exist', buildReview());
+      expect(updated).toBeNull();
+    });
+
+    it("updates a skeptic review's human notes", async () => {
+      const created = await repository.create(buildCreateInput());
+      await repository.addSkepticReview(created.id, { ...buildReview(), incidentId: created.id });
+
+      const updated = await repository.updateSkepticReviewNotes(created.id, 'review-1', 'My notes.');
+      expect(updated?.skepticReviews[0]?.humanNotes).toBe('My notes.');
+    });
+
+    it('returns null for a missing incident', async () => {
+      const updated = await repository.updateSkepticReviewNotes('does-not-exist', 'review-1', 'x');
+      expect(updated).toBeNull();
+    });
+
+    it('returns null for a missing skeptic review id', async () => {
+      const created = await repository.create(buildCreateInput());
+      await repository.addSkepticReview(created.id, { ...buildReview(), incidentId: created.id });
+
+      const updated = await repository.updateSkepticReviewNotes(created.id, 'does-not-exist', 'x');
+      expect(updated).toBeNull();
+    });
+
+    it('bumps updatedAt on success', async () => {
+      const created = await repository.create(buildCreateInput());
+      await repository.addSkepticReview(created.id, { ...buildReview(), incidentId: created.id });
+
+      vi.useFakeTimers();
+      try {
+        vi.advanceTimersByTime(1000);
+        const updated = await repository.updateSkepticReviewNotes(created.id, 'review-1', 'x');
+        expect(updated?.updatedAt).not.toBe(created.updatedAt);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('updateStatementReviewStatus', () => {

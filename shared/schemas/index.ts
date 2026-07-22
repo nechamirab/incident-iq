@@ -6,5 +6,6 @@ export * from './hypothesis.schema.js';
 export * from './bias.schema.js';
 export * from './action.schema.js';
 export * from './analysisRun.schema.js';
+export * from './skepticReview.schema.js';
 export * from './incident.schema.js';
 export * from './postmortem.schema.js';

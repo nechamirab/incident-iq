@@ -8,11 +8,13 @@ import {
   listIncidents,
   listSampleIncidents,
 } from '../controllers/incidentController.js';
+import { triggerSkepticReview, updateSkepticReviewNotes } from '../controllers/skepticReviewController.js';
 import { reviewStatement } from '../controllers/statementController.js';
 import { incidentEvidenceUpload } from '../middleware/upload.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import type { IncidentRepository } from '../repositories/IncidentRepository.js';
 import { IncidentIntakeRequestSchema } from '../schemas/incidentIntake.schema.js';
+import { SkepticReviewNotesRequestSchema } from '../schemas/skepticReviewNotes.schema.js';
 import { StatementReviewRequestSchema } from '../schemas/statementReview.schema.js';
 
 /**
@@ -35,10 +37,16 @@ export function createIncidentRouter(repository: IncidentRepository, aiProvider:
     createIncident(repository),
   );
   router.post('/:incidentId/analyze', analyzeIncidentHandler(repository, aiProvider));
+  router.post('/:incidentId/skeptic-review', triggerSkepticReview(repository, aiProvider));
   router.patch(
     '/:incidentId/statements/:statementId/review',
     validateBody(StatementReviewRequestSchema),
     reviewStatement(repository),
+  );
+  router.patch(
+    '/:incidentId/skeptic-reviews/:reviewId/notes',
+    validateBody(SkepticReviewNotesRequestSchema),
+    updateSkepticReviewNotes(repository),
   );
 
   return router;

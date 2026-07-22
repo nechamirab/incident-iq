@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Alert, Box, CircularProgress, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import { WORKSPACE_SECTIONS } from '../../constants/workspaceSections';
+import { AIReviewSection } from '../../components/workspace/AIReviewSection';
 import { EvidenceSection } from '../../components/workspace/EvidenceSection';
 import { FactsAssumptionsSection } from '../../components/workspace/FactsAssumptionsSection';
 import { HypothesesSection } from '../../components/workspace/HypothesesSection';
@@ -18,9 +19,9 @@ import { useWorkspaceStore, type WorkspaceSection } from '../../store/workspaceS
 /**
  * The Incident Workspace: fetches the incident and renders a tabbed
  * layout. Overview, Evidence, Timeline, Hypotheses, Facts & Assumptions,
- * Reasoning Risks, and Recommended Actions are fully implemented; the
- * remaining sections show a placeholder naming the stage that introduces
- * them, so the intended navigation is visible end to end.
+ * Reasoning Risks, Recommended Actions, and AI Review are fully
+ * implemented; the remaining sections show a placeholder naming the stage
+ * that introduces them, so the intended navigation is visible end to end.
  */
 export function IncidentWorkspacePage(): ReactNode {
   const { incidentId } = useParams<{ incidentId: string }>();
@@ -99,6 +100,7 @@ export function IncidentWorkspacePage(): ReactNode {
         {activeSection === 'facts-assumptions' && <FactsAssumptionsSection incident={incident} />}
         {activeSection === 'reasoning-risks' && <ReasoningRisksSection incident={incident} />}
         {activeSection === 'actions' && <RecommendedActionsSection incident={incident} />}
+        {activeSection === 'ai-review' && <AIReviewSection incident={incident} />}
         {(() => {
           const section = WORKSPACE_SECTIONS.find((candidate) => candidate.id === activeSection);
           return section?.arrivingInStage ? (

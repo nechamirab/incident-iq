@@ -7,5 +7,6 @@ export * from './hypothesis.js';
 export * from './bias.js';
 export * from './action.js';
 export * from './analysisRun.js';
+export * from './skepticReview.js';
 export * from './incident.js';
 export * from './postmortem.js';

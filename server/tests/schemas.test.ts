@@ -10,6 +10,7 @@ import {
   PostmortemSchema,
   RecommendedActionSchema,
   ReasoningItemSchema,
+  SkepticReviewSchema,
   TimelineEventSchema,
 } from '../../shared/schemas/index.js';
 import { sampleIncidents } from '../src/data/incidents/index.js';
@@ -233,6 +234,46 @@ describe('AnalysisRunSchema', () => {
 
   it('rejects an invalid provider', () => {
     expect(AnalysisRunSchema.safeParse({ ...valid, provider: 'openai' }).success).toBe(false);
+  });
+});
+
+describe('SkepticReviewSchema', () => {
+  const valid = {
+    id: 'review-1',
+    incidentId: 'sample-ecommerce-checkout',
+    analysisRunId: 'run-1',
+    provider: 'mock',
+    model: 'mock-v1',
+    promptVersion: 'skeptic-review-v1',
+    createdAt: '2026-06-14T15:05:00Z',
+    durationMs: 400,
+    challengedHypothesisId: 'hyp-1',
+    challengeSummary: 'The leading hypothesis relies on a narrow slice of evidence.',
+    alternativeExplanations: ['Hypothesis two was not fully explored.'],
+    ignoredEvidenceIds: ['sample-ecommerce-checkout-ev-10'],
+    confirmationBiasAssessment: 'No contradicting evidence was actively sought.',
+    falsificationTest: 'If the pattern also appears in a known-healthy period, this is falsified.',
+    recommendedTests: ['Independently verify the supporting evidence.'],
+    overallAssessment: 'This does not confirm or reject the leading hypothesis.',
+    humanNotes: null,
+    rawResponse: { note: 'mock provider does not produce a raw response' },
+  };
+
+  it('accepts a well-formed skeptic review', () => {
+    const result = SkepticReviewSchema.safeParse(valid);
+    expect(result.success, JSON.stringify(result.success ? null : result.error.issues)).toBe(true);
+  });
+
+  it('accepts a non-null humanNotes string', () => {
+    expect(SkepticReviewSchema.safeParse({ ...valid, humanNotes: 'Reviewed.' }).success).toBe(true);
+  });
+
+  it('rejects an invalid provider', () => {
+    expect(SkepticReviewSchema.safeParse({ ...valid, provider: 'openai' }).success).toBe(false);
+  });
+
+  it('rejects an empty challengeSummary', () => {
+    expect(SkepticReviewSchema.safeParse({ ...valid, challengeSummary: '' }).success).toBe(false);
   });
 });
 

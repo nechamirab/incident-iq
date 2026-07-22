@@ -6,6 +6,7 @@ import type {
   UpdateIncidentInput,
 } from '../../../shared/types/incident.js';
 import type { ReviewStatus } from '../../../shared/types/reasoning.js';
+import type { SkepticReview } from '../../../shared/types/skepticReview.js';
 import { createId } from '../utils/id.js';
 import type { IncidentRepository } from './IncidentRepository.js';
 
@@ -51,6 +52,7 @@ export class InMemoryIncidentRepository implements IncidentRepository {
       updatedAt: now,
       evidence: [],
       analysisRuns: [],
+      skepticReviews: [],
     };
 
     this.incidentsById.set(incident.id, incident);
@@ -102,6 +104,55 @@ export class InMemoryIncidentRepository implements IncidentRepository {
     const updated: Incident = {
       ...existing,
       analysisRuns: [...existing.analysisRuns, run],
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.incidentsById.set(incidentId, updated);
+    return structuredClone(updated);
+  }
+
+  async addSkepticReview(incidentId: string, review: SkepticReview): Promise<Incident | null> {
+    const existing = this.incidentsById.get(incidentId);
+    if (!existing) {
+      return null;
+    }
+
+    const updated: Incident = {
+      ...existing,
+      skepticReviews: [...existing.skepticReviews, review],
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.incidentsById.set(incidentId, updated);
+    return structuredClone(updated);
+  }
+
+  async updateSkepticReviewNotes(
+    incidentId: string,
+    reviewId: string,
+    humanNotes: string,
+  ): Promise<Incident | null> {
+    const existing = this.incidentsById.get(incidentId);
+    if (!existing) {
+      return null;
+    }
+
+    let found = false;
+    const skepticReviews: SkepticReview[] = existing.skepticReviews.map((review) => {
+      if (review.id !== reviewId) {
+        return review;
+      }
+      found = true;
+      return { ...review, humanNotes };
+    });
+
+    if (!found) {
+      return null;
+    }
+
+    const updated: Incident = {
+      ...existing,
+      skepticReviews,
       updatedAt: new Date().toISOString(),
     };
 

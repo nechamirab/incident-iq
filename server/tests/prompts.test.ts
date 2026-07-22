@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildIncidentAnalysisPrompt } from '../src/ai/prompts/incidentAnalysisV1.js';
 import { buildRepairPrompt } from '../src/ai/prompts/repairInvalidJsonV1.js';
+import { buildSkepticReviewPrompt, findLeadingHypothesis } from '../src/ai/prompts/skepticReviewV1.js';
 import { sampleIncidents } from '../src/data/incidents/index.js';
+import { buildAnalysisRun } from './helpers/analysisRunFixture.js';
 
 describe('buildIncidentAnalysisPrompt', () => {
   const incident = sampleIncidents[0];
@@ -50,5 +52,45 @@ describe('buildRepairPrompt', () => {
     const repair = buildRepairPrompt(originalPrompt, hugeResponse, 'issue');
     expect(repair.user.length).toBeLessThan(hugeResponse.length);
     expect(repair.user).toContain('truncated');
+  });
+});
+
+describe('findLeadingHypothesis', () => {
+  it('returns the hypothesis with the highest confidence', () => {
+    const incident = sampleIncidents[0];
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    const leading = findLeadingHypothesis(run);
+    expect(leading.confidence).toBe(Math.max(...run.hypotheses.map((h) => h.confidence)));
+  });
+});
+
+describe('buildSkepticReviewPrompt', () => {
+  const incident = sampleIncidents[0];
+  const run = buildAnalysisRun(incident, incident.evidence[0].id);
+  const leading = findLeadingHypothesis(run);
+  const prompt = buildSkepticReviewPrompt(incident, run);
+
+  it('names the leading hypothesis to challenge, in both system and user prompt', () => {
+    expect(prompt.system).toContain(leading.title);
+    expect(prompt.user).toContain(leading.title);
+    expect(prompt.system.toUpperCase()).toContain('CHALLENGE');
+  });
+
+  it('includes every evidence id so the model can cite them', () => {
+    for (const item of incident.evidence) {
+      expect(prompt.user).toContain(item.id);
+    }
+  });
+
+  it("includes every hypothesis's id and confidence, marking which one is leading", () => {
+    for (const hypothesis of run.hypotheses) {
+      expect(prompt.user).toContain(hypothesis.id);
+      expect(prompt.user).toContain(hypothesis.title);
+    }
+    expect(prompt.user).toContain('LEADING HYPOTHESIS TO CHALLENGE');
+  });
+
+  it('instructs the model not to report the ignored-evidence list or hypothesis id itself', () => {
+    expect(prompt.system.toLowerCase()).toContain('ignored');
   });
 });

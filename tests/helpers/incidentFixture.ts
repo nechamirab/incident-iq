@@ -38,6 +38,7 @@ export function buildIncident(overrides: Partial<Incident> = {}): Incident {
     updatedAt: '2026-07-01T00:00:00Z',
     evidence: [],
     analysisRuns: [],
+    skepticReviews: [],
     ...overrides,
   };
 }

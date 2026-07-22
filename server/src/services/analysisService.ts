@@ -5,73 +5,40 @@ import {
   buildIncidentAnalysisPrompt,
   INCIDENT_ANALYSIS_PROMPT_VERSION,
 } from '../ai/prompts/incidentAnalysisV1.js';
-import { buildRepairPrompt, REPAIR_INVALID_JSON_PROMPT_VERSION } from '../ai/prompts/repairInvalidJsonV1.js';
-import type { AIPrompt, AIProvider } from '../ai/providers/AIProvider.js';
-import { validateAIResponse, type AIResponseValidation } from '../ai/validators/validateAIResponse.js';
+import { REPAIR_INVALID_JSON_PROMPT_VERSION } from '../ai/prompts/repairInvalidJsonV1.js';
+import type { AIProvider } from '../ai/providers/AIProvider.js';
+import { runProviderWithRetry } from '../ai/runProviderWithRetry.js';
+import { validateAIResponse } from '../ai/validators/validateAIResponse.js';
 import type { IncidentRepository } from '../repositories/IncidentRepository.js';
 import { ApiError } from '../utils/ApiError.js';
 
-interface ProviderAttempt {
-  rawText: string;
-  validation: AIResponseValidation;
-}
-
-async function callAndValidate(
-  incident: Incident,
-  provider: AIProvider,
-  prompt: AIPrompt,
-): Promise<ProviderAttempt> {
-  const rawText = await provider.complete(incident, prompt);
-  return { rawText, validation: validateAIResponse(rawText) };
-}
-
 /**
- * Calls the provider, validates its response, and -- if validation fails
- * (invalid JSON, or JSON that doesn't match the required schema) -- retries
- * exactly once with a repair prompt describing what was wrong. Throws a
- * controlled {@link ApiError} if the response is still invalid after the
- * retry; a malformed response is never returned to the caller.
+ * Calls the provider, validates its response, and -- if validation fails --
+ * retries exactly once with a repair prompt (see {@link runProviderWithRetry}
+ * for the shared retry contract), then maps the validated response into a
+ * persisted {@link AnalysisRun}.
  */
 async function runAnalysisWithRetry(incident: Incident, provider: AIProvider): Promise<AnalysisRun> {
-  const startedAt = Date.now();
-  const prompt = buildIncidentAnalysisPrompt(incident);
+  const result = await runProviderWithRetry({
+    incident,
+    provider,
+    buildPrompt: () => buildIncidentAnalysisPrompt(incident),
+    validate: validateAIResponse,
+    promptVersion: INCIDENT_ANALYSIS_PROMPT_VERSION,
+    repairPromptVersion: REPAIR_INVALID_JSON_PROMPT_VERSION,
+    invalidErrorCode: 'AI_RESPONSE_INVALID',
+    invalidErrorMessage: 'The AI response could not be validated, even after one repair attempt.',
+  });
 
-  const firstAttempt = await callAndValidate(incident, provider, prompt);
-  if (firstAttempt.validation.success) {
-    return mapAiResponseToAnalysisRun({
-      incident,
-      response: firstAttempt.validation.data,
-      providerName: provider.name,
-      model: provider.model,
-      promptVersion: INCIDENT_ANALYSIS_PROMPT_VERSION,
-      durationMs: Date.now() - startedAt,
-      rawResponse: { rawText: firstAttempt.rawText, repaired: false },
-    });
-  }
-
-  const repairPrompt = buildRepairPrompt(prompt, firstAttempt.rawText, firstAttempt.validation.issues);
-  const secondAttempt = await callAndValidate(incident, provider, repairPrompt);
-  if (secondAttempt.validation.success) {
-    return mapAiResponseToAnalysisRun({
-      incident,
-      response: secondAttempt.validation.data,
-      providerName: provider.name,
-      model: provider.model,
-      promptVersion: REPAIR_INVALID_JSON_PROMPT_VERSION,
-      durationMs: Date.now() - startedAt,
-      rawResponse: { rawText: secondAttempt.rawText, repaired: true },
-    });
-  }
-
-  throw new ApiError(
-    502,
-    'AI_RESPONSE_INVALID',
-    'The AI response could not be validated, even after one repair attempt.',
-    {
-      firstAttemptIssues: firstAttempt.validation.issues,
-      secondAttemptIssues: secondAttempt.validation.issues,
-    },
-  );
+  return mapAiResponseToAnalysisRun({
+    incident,
+    response: result.data,
+    providerName: provider.name,
+    model: provider.model,
+    promptVersion: result.promptVersionUsed,
+    durationMs: result.durationMs,
+    rawResponse: { rawText: result.rawText, repaired: result.repaired },
+  });
 }
 
 /**

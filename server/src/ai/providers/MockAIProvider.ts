@@ -1,3 +1,4 @@
+import type { AnalysisRun } from '../../../../shared/types/analysisRun.js';
 import type { EvidenceItem, EvidenceSourceType } from '../../../../shared/types/evidence.js';
 import type { Incident } from '../../../../shared/types/incident.js';
 import type { ActionCategory, ActionPriority } from '../../../../shared/types/action.js';
@@ -10,7 +11,9 @@ import type {
   AiReasoningItem,
   AiTimelineEvent,
 } from '../schemas/aiAnalysisResponse.schema.js';
-import type { AIPrompt, AIProvider } from './AIProvider.js';
+import type { AiSkepticReviewResponse } from '../schemas/skepticReviewResponse.schema.js';
+import { findLeadingHypothesis } from '../prompts/skepticReviewV1.js';
+import type { AICompletionContext, AIPrompt, AIProvider } from './AIProvider.js';
 
 const FACT_WORTHY_SOURCE_TYPES: readonly EvidenceSourceType[] = [
   'application-log',
@@ -448,6 +451,90 @@ function buildMockAnalysis(incident: Incident): AiAnalysisResponse {
 }
 
 /**
+ * Builds a fully deterministic (pure function of the incident's evidence and
+ * the run being reviewed) mock skeptic review. Challenges the leading
+ * hypothesis (highest confidence) by name, cross-references its supporting
+ * evidence back to the incident to find whether it leans on one dominant
+ * source type, and reframes the run's other hypotheses as alternatives
+ * worth reconsidering -- generic logic that works for any incident/run, not
+ * hand-tuned to any specific sample.
+ */
+function buildMockSkepticReview(incident: Incident, run: AnalysisRun): AiSkepticReviewResponse {
+  const leading = findLeadingHypothesis(run);
+  const otherHypotheses = run.hypotheses.filter((h) => h.id !== leading.id);
+
+  const evidenceById = new Map(incident.evidence.map((item) => [item.id, item]));
+  const supportingItems = leading.supportingEvidenceIds
+    .map((id) => evidenceById.get(id))
+    .filter((item): item is EvidenceItem => item !== undefined);
+
+  const sourceTypeCounts = new Map<EvidenceSourceType, number>();
+  for (const item of supportingItems) {
+    sourceTypeCounts.set(item.sourceType, (sourceTypeCounts.get(item.sourceType) ?? 0) + 1);
+  }
+  const dominant = [...sourceTypeCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  const dominantLabel = dominant ? humanize(dominant[0]) : undefined;
+  const dominantCount = dominant ? dominant[1] : 0;
+
+  const challengeSummary = dominantLabel
+    ? `The leading hypothesis ("${leading.title}", confidence ${leading.confidence}/100) is supported ` +
+      `by ${supportingItems.length} evidence item(s), ${dominantCount} of which are ${dominantLabel} ` +
+      'alone. A concentration of evidence from one source does not rule out a different cause that ' +
+      'would produce similar symptoms.'
+    : `The leading hypothesis ("${leading.title}", confidence ${leading.confidence}/100) is supported ` +
+      `by ${supportingItems.length} evidence item(s). It has not been independently stress-tested ` +
+      'against alternative explanations.';
+
+  const alternativeExplanations =
+    otherHypotheses.length > 0
+      ? otherHypotheses.map(
+          (h) => `"${h.title}" (confidence ${h.confidence}/100) was not prioritized but has not been ruled out.`,
+        )
+      : [
+          'No alternative hypotheses were proposed in the original analysis; consider whether the ' +
+            'evidence supports an explanation outside this set entirely.',
+        ];
+
+  const confirmationBiasAssessment =
+    leading.contradictingEvidenceIds.length === 0
+      ? 'The leading hypothesis lists no contradicting evidence. Confirm this reflects a genuine ' +
+        'absence of counter-evidence, not that disconfirming evidence was never sought.'
+      : `The leading hypothesis does list ${leading.contradictingEvidenceIds.length} contradicting ` +
+        'evidence item(s); confirm these were weighed fairly rather than discounted.';
+
+  const falsificationTest = dominantLabel
+    ? `Check whether ${dominantLabel} patterns like these also occur during known-healthy periods ` +
+      'with no reported incident. If so, this hypothesis is falsified.'
+    : `Identify a condition that, if observed, would be inconsistent with "${leading.title}" -- none ` +
+      'is stated in the original analysis.';
+
+  const recommendedTests = [
+    `Independently verify the ${supportingItems.length} evidence item(s) behind the leading ` +
+      'hypothesis without assuming the conclusion.',
+    ...(otherHypotheses.length > 0
+      ? [
+          `Rule out or confirm the next-highest-confidence alternative ("${otherHypotheses[0].title}") ` +
+            'before treating the leading hypothesis as likely.',
+        ]
+      : []),
+  ];
+
+  const overallAssessment =
+    `This review does not confirm or reject "${leading.title}"; it highlights specific gaps -- ` +
+    'concentrated evidence, unexamined alternatives, and an unconfirmed absence of contradicting ' +
+    'evidence -- that a human investigator should close before treating it as likely.';
+
+  return {
+    challengeSummary,
+    alternativeExplanations,
+    confirmationBiasAssessment,
+    falsificationTest,
+    recommendedTests,
+    overallAssessment,
+  };
+}
+
+/**
  * Deterministic, offline AI provider used when `AI_PROVIDER=mock` (the
  * default). Never makes a network call and never pretends its output came
  * from a real model -- `name`/`model` always identify it as the mock.
@@ -456,7 +543,10 @@ export class MockAIProvider implements AIProvider {
   readonly name = 'mock' as const;
   readonly model = 'mock-deterministic-v1';
 
-  async complete(incident: Incident, _prompt: AIPrompt): Promise<string> {
+  async complete(incident: Incident, _prompt: AIPrompt, context?: AICompletionContext): Promise<string> {
+    if (context?.analysisRun) {
+      return JSON.stringify(buildMockSkepticReview(incident, context.analysisRun));
+    }
     return JSON.stringify(buildMockAnalysis(incident));
   }
 }
