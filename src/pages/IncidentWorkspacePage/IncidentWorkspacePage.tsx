@@ -1,12 +1,14 @@
 import { useEffect, type ReactNode } from 'react';
 import { Alert, Box, CircularProgress, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
+import { ROUTES } from '../../constants/routes';
 import { WORKSPACE_SECTIONS } from '../../constants/workspaceSections';
 import { AIReviewSection } from '../../components/workspace/AIReviewSection';
 import { EvidenceSection } from '../../components/workspace/EvidenceSection';
 import { FactsAssumptionsSection } from '../../components/workspace/FactsAssumptionsSection';
 import { HypothesesSection } from '../../components/workspace/HypothesesSection';
 import { OverviewSection } from '../../components/workspace/OverviewSection';
+import { PageBreadcrumbs } from '../../components/layout/PageBreadcrumbs';
 import { PlaceholderSection } from '../../components/workspace/PlaceholderSection';
 import { ReasoningRisksSection } from '../../components/workspace/ReasoningRisksSection';
 import { RecommendedActionsSection } from '../../components/workspace/RecommendedActionsSection';
@@ -36,36 +38,55 @@ export function IncidentWorkspacePage(): ReactNode {
     resetForIncident();
   }, [incidentId, resetForIncident]);
 
+  const breadcrumbs = (
+    <PageBreadcrumbs
+      items={[
+        { label: 'Dashboard', to: ROUTES.dashboard },
+        { label: incidentQuery.data?.title ?? 'Incident' },
+      ]}
+    />
+  );
+
   if (incidentQuery.isLoading) {
     return (
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-        <CircularProgress size={18} aria-hidden="true" />
-        <Typography role="status" color="text.secondary">
-          Loading incident&hellip;
-        </Typography>
+      <Stack spacing={2}>
+        {breadcrumbs}
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          <CircularProgress size={18} aria-hidden="true" />
+          <Typography role="status" color="text.secondary">
+            Loading incident&hellip;
+          </Typography>
+        </Stack>
       </Stack>
     );
   }
 
   if (incidentQuery.isError) {
     return (
-      <Alert severity="error" variant="outlined">
-        Could not load this incident: {incidentQuery.error.message}
-      </Alert>
+      <Stack spacing={2}>
+        {breadcrumbs}
+        <Alert severity="error" variant="outlined">
+          Could not load this incident: {incidentQuery.error.message}
+        </Alert>
+      </Stack>
     );
   }
 
   const incident = incidentQuery.data;
   if (!incident) {
     return (
-      <Alert severity="warning" variant="outlined">
-        No incident was found with id "{incidentId}".
-      </Alert>
+      <Stack spacing={2}>
+        {breadcrumbs}
+        <Alert severity="warning" variant="outlined">
+          No incident was found with id "{incidentId}".
+        </Alert>
+      </Stack>
     );
   }
 
   return (
     <Stack spacing={3}>
+      {breadcrumbs}
       <WorkspaceHeader
         incident={incident}
         onAnalyze={() => analyzeMutation.mutate()}

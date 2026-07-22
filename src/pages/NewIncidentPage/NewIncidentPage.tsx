@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Stack, Typography } from '@mui/material';
 import { NewIncidentForm } from '../../components/incidents/NewIncidentForm';
+import { PageBreadcrumbs } from '../../components/layout/PageBreadcrumbs';
+import { ROUTES } from '../../constants/routes';
 
 /**
  * Incident-creation page: introduces the workflow, then renders the New
@@ -9,6 +11,8 @@ import { NewIncidentForm } from '../../components/incidents/NewIncidentForm';
 export function NewIncidentPage(): ReactNode {
   return (
     <Stack spacing={3}>
+      <PageBreadcrumbs items={[{ label: 'Dashboard', to: ROUTES.dashboard }, { label: 'New Incident' }]} />
+
       <Stack spacing={1}>
         <Typography variant="h4" component="h1">
           New Incident

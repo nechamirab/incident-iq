@@ -8,23 +8,19 @@ The system is designed to always separate **facts** (directly supported by evide
 **assumptions** (plausible but unproven), **hypotheses** (explanations requiring testing), and
 **actions** (concrete next steps). It never presents a hypothesis as a confirmed root cause.
 
-> **Status:** Stage 8 — Critical AI Review. Stage 1 established the frontend/backend skeleton;
-> Stage 2 added the domain model and mock data; Stage 3 made incident creation and file upload
-> real; Stage 4 built the AI analysis pipeline; Stage 5 made the Incident Workspace real (Overview,
-> Evidence, Facts & Assumptions); Stage 6 added Timeline and Hypotheses; Stage 7 added Reasoning
-> Risks and Recommended Actions. Stage 8 adds a second, independent AI pass — a **skeptic
-> review** that challenges the leading hypothesis of an incident's latest analysis run, surfaces
-> alternative explanations, names evidence the original analysis never cited, assesses
-> confirmation-bias risk, states what would falsify the leading hypothesis, and recommends
-> further tests. It never overwrites or modifies the original analysis; it is always a separate,
-> additional record. This introduced a new domain entity (`SkepticReview`), a new versioned prompt
-> (`skeptic-review-v1`), a second AI-facing response schema, and a new `POST
-> /api/incidents/:incidentId/skeptic-review` endpoint — all reusing the same provider-agnostic,
-> validate-then-retry-once pipeline `analysisService` established in Stage 4 (now factored into a
-> shared `runProviderWithRetry` helper both services call). The AI Review tab shows the latest
-> run's audit information, a comparison across every analysis run performed on the incident, every
-> skeptic review, and lets a human reviewer record their own notes on each one. Postmortem remains
-> a named placeholder for Stage 9.
+> **Status:** Stage 9 — Incident Dashboard and Navigation. Stage 1 established the frontend/backend
+> skeleton; Stage 2 added the domain model and mock data; Stage 3 made incident creation and file
+> upload real; Stage 4 built the AI analysis pipeline; Stage 5 made the Incident Workspace real
+> (Overview, Evidence, Facts & Assumptions); Stage 6 added Timeline and Hypotheses; Stage 7 added
+> Reasoning Risks and Recommended Actions; Stage 8 added the skeptic-review AI Review tab. Stage 9
+> replaces the Dashboard's placeholder ("Incident metrics and listings are introduced in a later
+> development stage") with a real, working incident list: every incident (bundled samples plus any
+> the user created), sorted most-recently-updated first, searchable by title/service/id, filterable
+> by status and severity, with a status-count summary row and a table whose every row links straight
+> to that incident's workspace. It also adds explicit breadcrumb navigation (`Dashboard / <page>`)
+> to the Incident Workspace and New Incident pages, via a shared `PageBreadcrumbs` component, so
+> there's always a clear way back that doesn't depend on the browser's back button. Postmortem
+> remains a named placeholder for Stage 10.
 
 ## Architecture
 
@@ -142,11 +138,39 @@ without duplicating it:
   reviewer record their own take on a skeptic review, stored separately from (and never
   overwriting) its AI-generated content.
 
+### Dashboard and navigation
+
+`/` (`DashboardPage`) lists every incident -- bundled samples plus any the user created -- most
+recently updated first (`sortIncidentsByUpdatedAt`), each row linking straight to its workspace:
+
+- **Status summary** (`IncidentStatusSummary`) — a row of count chips in a fixed lifecycle order
+  (`summarizeIncidentsByStatus`), including zero-count statuses so the row never reflows as counts
+  change, plus a running total.
+- **Search and filter** (`IncidentFilterBar` + `filterIncidents`) — free-text search against title,
+  affected service, and id, combined (AND, not OR) with independent status and severity dropdowns,
+  their options driven directly from `IncidentStatusSchema.options`/`IncidentSeveritySchema.options`
+  so they can never drift from the domain model.
+- **Incident table** (`IncidentListTable`) — title, status, severity, affected service, detected-at,
+  and updated-at for every matching incident. Each title is a real router link (not just a row
+  click handler), so navigating to a workspace works from the keyboard and for screen readers, not
+  only by mouse.
+- Explicit loading, error, and empty states (`isLoading`/`isError`, and "No incidents yet" versus
+  "No incidents match the current search/filter" for the two different kinds of empty results) --
+  never a silently blank list.
+
+The backend-connection health check from earlier stages is still shown, now as a secondary card
+below the incident list rather than the page's main content.
+
+Every page below the Dashboard (`IncidentWorkspacePage`, `NewIncidentPage`) now renders a
+`PageBreadcrumbs` trail (`Dashboard / <page>`) at its top, so there is always an explicit way back
+that doesn't depend on the browser's back button -- every breadcrumb but the current page is a real
+link.
+
 ### Incident Workspace
 
 `/incidents/:incidentId` (`IncidentWorkspacePage`) is a tabbed layout listing all nine sections
 the finished app will have (`src/constants/workspaceSections.ts`); the one section not yet built
-(Postmortem) renders a named placeholder ("Postmortem is not implemented yet... Stage 9") rather
+(Postmortem) renders a named placeholder ("Postmortem is not implemented yet... Stage 10") rather
 than being hidden, so the intended navigation is visible end to end. Eight sections are fully
 implemented:
 
@@ -263,7 +287,8 @@ the incident and its full evidence list in one request.
 incident-iq/
   src/                     # Frontend application
     app/                   # App root, router, providers
-    components/layout/     # Shared layout (header, shell)
+    components/layout/     # Shared layout (header, shell, PageBreadcrumbs)
+    components/dashboard/  # IncidentStatusSummary, IncidentFilterBar, IncidentListTable
     components/incidents/  # NewIncidentForm, LoadSampleIncidentButton, IncidentCreatedPanel
     components/evidence/   # EvidenceCard, FileUploadZone (drag-drop, preview, remove)
     components/workspace/  # WorkspaceHeader, Overview/Evidence/Timeline/Hypotheses/FactsAssumptions/
@@ -279,7 +304,8 @@ incident-iq/
     schemas/               # Frontend-only Zod schemas (New Incident form)
     constants/              # Routes, query keys, workspace section config
     theme/                 # MUI theme tokens
-    utils/                 # File validation/size formatting, evidence filtering/reference-indexing/sorting, status-display mapping
+    utils/                 # File validation/size formatting, evidence/incident filtering/sorting/
+                            # summarizing, reference-indexing, status-display mapping
   server/                  # Backend application
     src/
       app.ts               # Express app factory (dependency-injectable repository + AI provider)
@@ -371,7 +397,9 @@ npm run dev:server   # Express API only (tsx watch mode)
 The Dashboard page calls `/api/health` on load and displays the connection status, so a
 successful load confirms the full stack is wired correctly.
 
-To see the full loop: open the Dashboard, click "Start a new incident", click "Load sample
+To see the full loop: open the Dashboard — it lists every incident with a status summary and
+search/filter controls, most recently updated first. Click "Start a new incident" (a breadcrumb
+trail back to the Dashboard appears at the top of every page from here on), click "Load sample
 incident" to prefill a realistic example, then "Save & analyze incident" — you'll land on that
 incident's workspace with a real (mock, by default) analysis already run. From there: Overview
 shows the summary/impact/uncertainty statement, Evidence is searchable/filterable, Timeline shows
@@ -380,7 +408,9 @@ explanation ranked by confidence with supporting/contradicting evidence, Facts &
 you mark any statement's review status, Reasoning Risks shows the biases this specific analysis
 flagged about itself, Recommended Actions shows concrete next steps ordered by priority, and AI
 Review lets you run a skeptic review that challenges the leading hypothesis and record your own
-notes on it. Clicking any evidence id chip anywhere jumps straight to that evidence item.
+notes on it. Clicking any evidence id chip anywhere jumps straight to that evidence item. Click
+"Dashboard" in the breadcrumb (or the header nav) to go back — the incident you just created now
+appears at the top of the list, and the status summary/filters reflect it immediately.
 
 ## Building
 
@@ -406,37 +436,32 @@ npm run test:client   # frontend only (Vitest, node environment)
 npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-350 tests total:
+365 tests total:
 
-- **Backend** (`server/tests/`, 260 tests) — everything from prior stages, plus this stage's
-  skeptic-review pipeline coverage: `SkepticReviewSchema` validation; `validateSkepticReviewResponse`
-  (JSON extraction/repair-fence handling, and confirming the AI's response is never required or
-  allowed to supply `challengedHypothesisId`/`ignoredEvidenceIds`); `buildSkepticReviewPrompt`
-  naming the correct leading hypothesis and every evidence id; `mapAiResponseToSkepticReview`
-  computing `challengedHypothesisId` and `ignoredEvidenceIds` itself rather than trusting the AI,
-  across every sample incident; `MockAIProvider`'s skeptic-review generation (deterministic,
-  schema-valid for every sample, names the leading hypothesis, reframes other hypotheses as
-  alternatives, falls back gracefully when a hypothesis has no resolvable supporting evidence or no
-  siblings); `skepticReviewService` (success, retry-with-repair, both-attempts-invalid, 404 missing
-  incident, 400 when no analysis run exists yet, always reviewing the *latest* run, never mutating
-  the original run, passing the run as completion context); the `POST .../skeptic-review` and
-  `PATCH .../skeptic-reviews/:reviewId/notes` routes end to end; and the new
-  `addSkepticReview`/`updateSkepticReviewNotes` repository methods.
-- **Frontend** (`tests/`, 90 tests) — everything from prior stages, plus `summarizeAnalysisRuns`
-  (the AI Review tab's run-comparison table logic: preserves run order, carries provenance through
-  unchanged, finds the highest hypothesis confidence per run, and returns `null` rather than `-Infinity`
-  when a run has no hypotheses).
+- **Backend** (`server/tests/`, 260 tests) — unchanged this stage; Stage 9 touched only the
+  frontend.
+- **Frontend** (`tests/`, 105 tests) — everything from prior stages, plus this stage's Dashboard
+  logic: `filterIncidents` (search against title/service/id combined with status/severity filters
+  as AND, not OR), `sortIncidentsByUpdatedAt` (most recent first, non-mutating, stable for equal
+  timestamps), and `summarizeIncidentsByStatus` (fixed lifecycle order, zero-count statuses
+  included so the summary row never reflows).
 
-Full component-level React Testing Library tests are introduced in Stage 10 — the workspace UI is
-exercised via its underlying pure logic and via live API smoke tests against a running server, not
-by rendering React components in a test runner. `AnthropicAIProvider` is still not exercised
-against the live Anthropic API (no network calls in tests, no API key available in this
+Full component-level React Testing Library tests are introduced in a later development stage — the
+workspace and Dashboard UI are exercised via their underlying pure logic and via live API/build
+smoke tests, not by rendering React components in a test runner. `AnthropicAIProvider` is still not
+exercised against the live Anthropic API (no network calls in tests, no API key available in this
 environment).
 
-## Known limitations (Stage 8)
+## Known limitations (Stage 9)
 
 - One of the nine workspace tabs (Postmortem) remains a placeholder naming the stage that builds
-  it (9).
+  it (10).
+- The Dashboard's search/filter/sort is entirely client-side over the full incident list returned
+  by `GET /api/incidents` — fine at this app's scale (a handful of bundled samples plus whatever a
+  single user creates in a session), but wouldn't scale to a large, multi-user incident volume
+  without server-side pagination/filtering, which is out of scope for this stage.
+- The incident table has one fixed sort order (most recently updated first); there is no
+  clickable-column sort by title, status, or severity.
 - A skeptic review always reviews the incident's *latest* analysis run; there is no way to request
   a skeptic review of an older run once a newer one exists, matching how every other workspace tab
   already treats "the latest run" as authoritative.
@@ -448,16 +473,16 @@ environment).
   implemented (unchanged from Stage 4) — evidence is sent to Anthropic as-is when
   `AI_PROVIDER=anthropic`.
 - No full-page/component-level frontend test suite (React Testing Library) yet, and no browser
-  tool is available in this environment to click through the new AI Review UI — typecheck, lint,
-  the full test suite, and a production build were all verified, plus a live smoke test against the
-  running server confirming: analyze → skeptic review → notes PATCH all persist and link correctly
-  (`analysisRunId` and `challengedHypothesisId` both resolve to the right records), a second
-  analyze + skeptic review cycle populates the run-comparison table with two real rows, a 400 is
-  returned when a skeptic review is requested before any analysis exists, and a 404 is returned for
-  a missing incident.
+  tool is available in this environment to click through the new Dashboard UI — typecheck, lint,
+  the full test suite, and a production build were all verified; the production bundle was checked
+  to confirm the new Dashboard/filter strings actually made it in, and a live smoke test against the
+  running server confirmed the exact sort order the Dashboard uses (`sortIncidentsByUpdatedAt`'s
+  comparator, replicated independently) puts a freshly created incident first, ahead of all three
+  bundled samples, using real `GET`/`POST /api/incidents` responses.
 
 ## Roadmap
 
 See the project brief for the full ten-stage plan: shared models & mock data, incident input &
 file upload, AI provider architecture, evidence workspace, timeline & hypotheses, reasoning-risk
-detection, critical AI review, postmortem export, and final testing/polish.
+detection, critical AI review, incident dashboard & navigation, postmortem export, and final
+testing/polish.

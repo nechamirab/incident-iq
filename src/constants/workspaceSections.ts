@@ -23,5 +23,5 @@ export const WORKSPACE_SECTIONS: readonly WorkspaceSectionConfig[] = [
   { id: 'reasoning-risks', label: 'Reasoning Risks', arrivingInStage: null },
   { id: 'actions', label: 'Recommended Actions', arrivingInStage: null },
   { id: 'ai-review', label: 'AI Review', arrivingInStage: null },
-  { id: 'postmortem', label: 'Postmortem', arrivingInStage: 9 },
+  { id: 'postmortem', label: 'Postmortem', arrivingInStage: 10 },
 ] as const;
