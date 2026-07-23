@@ -58,6 +58,15 @@ export function NewIncidentForm(): ReactNode {
   const [createdIncident, setCreatedIncident] = useState<Incident | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  /**
+   * Bumped whenever the file selection is cleared from outside
+   * `FileUploadZone` (form reset, loading a sample incident) to force it to
+   * remount -- `FileUploadZone` owns its own rejection-error/preview/
+   * expanded-row state internally, and none of that is reachable from here
+   * except by giving it a fresh `key`, the standard way to fully reset a
+   * child's self-contained state without lifting it up or duplicating it.
+   */
+  const [uploadZoneResetKey, setUploadZoneResetKey] = useState(0);
   const createIncidentMutation = useCreateIncident();
 
   const { control, handleSubmit, reset } = useForm<NewIncidentFormValues>({
@@ -68,6 +77,7 @@ export function NewIncidentForm(): ReactNode {
   function handleResetForm(): void {
     reset(DEFAULT_VALUES);
     setFiles([]);
+    setUploadZoneResetKey((key) => key + 1);
     createIncidentMutation.reset();
     setAnalyzeError(null);
   }
@@ -75,6 +85,7 @@ export function NewIncidentForm(): ReactNode {
   function handleLoadSample(incident: Incident): void {
     reset(buildFormValuesFromIncident(incident));
     setFiles([]);
+    setUploadZoneResetKey((key) => key + 1);
   }
 
   function handleCreateAnother(): void {
@@ -245,7 +256,7 @@ export function NewIncidentForm(): ReactNode {
             <Typography variant="h6" component="h2">
               Upload files
             </Typography>
-            <FileUploadZone files={files} onChange={setFiles} />
+            <FileUploadZone key={uploadZoneResetKey} files={files} onChange={setFiles} />
           </Stack>
         </CardContent>
       </Card>

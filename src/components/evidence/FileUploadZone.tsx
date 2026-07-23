@@ -20,7 +20,7 @@ import {
   MAX_FILE_SIZE_BYTES,
 } from '../../../shared/constants/fileUpload';
 import { formatFileSize } from '../../utils/formatFileSize';
-import { validateSelectedFile } from '../../utils/fileValidation';
+import { resolveFileSelection } from '../../utils/fileValidation';
 
 const PREVIEW_BYTE_LIMIT = 2000;
 
@@ -42,26 +42,16 @@ export function FileUploadZone({ files, onChange }: FileUploadZoneProps): ReactN
   const [expandedFileName, setExpandedFileName] = useState<string | null>(null);
   const [previewsByName, setPreviewsByName] = useState<Record<string, string>>({});
 
+  /**
+   * Validates one newly selected/dropped batch via the shared
+   * {@link resolveFileSelection} logic and replaces the rejection-error
+   * state wholesale with this batch's result (never merged with a
+   * previous call's errors) -- this is what guarantees a stale message
+   * about an earlier, now-irrelevant selection attempt never survives a
+   * new one, whether it arrived via the file picker or a drop.
+   */
   function addFiles(candidates: File[]): void {
-    const errors: string[] = [];
-    const accepted: File[] = [];
-    let remainingSlots = MAX_FILES_PER_INCIDENT - files.length;
-
-    for (const candidate of candidates) {
-      if (remainingSlots <= 0) {
-        errors.push(`"${candidate.name}" was not added: the ${MAX_FILES_PER_INCIDENT}-file limit was reached.`);
-        continue;
-      }
-
-      const reason = validateSelectedFile(candidate);
-      if (reason) {
-        errors.push(reason);
-        continue;
-      }
-
-      accepted.push(candidate);
-      remainingSlots -= 1;
-    }
+    const { accepted, errors } = resolveFileSelection(files.length, candidates);
 
     setRejectionErrors(errors);
     if (accepted.length > 0) {
@@ -82,8 +72,17 @@ export function FileUploadZone({ files, onChange }: FileUploadZoneProps): ReactN
     addFiles(Array.from(event.dataTransfer.files));
   }
 
+  /**
+   * Removing a file is a fresh user action that supersedes any rejection
+   * message from a previous selection attempt -- rejection errors are
+   * never tied to a specific item still in `files` (an invalid file is
+   * never added to the list in the first place), so any removal clears
+   * them, rather than leaving a stale message with nothing left to
+   * associate it with.
+   */
   function handleRemove(target: File): void {
     onChange(files.filter((file) => file !== target));
+    setRejectionErrors([]);
     setPreviewsByName((current) => {
       const next = { ...current };
       delete next[target.name];
