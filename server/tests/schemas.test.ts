@@ -113,6 +113,16 @@ describe('ReasoningItemSchema', () => {
   it('rejects an invalid category', () => {
     expect(ReasoningItemSchema.safeParse({ ...valid, category: 'opinion' }).success).toBe(false);
   });
+
+  it('rejects a fact with zero evidence ids', () => {
+    const result = ReasoningItemSchema.safeParse({ ...valid, category: 'fact', evidenceIds: [] });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts an assumption with zero evidence ids', () => {
+    const result = ReasoningItemSchema.safeParse({ ...valid, category: 'assumption', evidenceIds: [] });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('TimelineEventSchema', () => {

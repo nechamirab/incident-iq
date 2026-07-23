@@ -18,10 +18,10 @@ describe('detectUnsupportedFacts', () => {
     expect(detectUnsupportedFacts(facts, new Set(['evidence-1']))).toEqual([]);
   });
 
-  it('flags a fact whose evidence ids are all unknown', () => {
+  it('flags a fact whose evidence ids are all unknown, returning the fact itself', () => {
     const fact = buildFact({ evidenceIds: ['bogus-1', 'bogus-2'] });
     const result = detectUnsupportedFacts([fact], new Set(['evidence-1']));
-    expect(result).toEqual([fact.statement]);
+    expect(result).toEqual([fact]);
   });
 
   it('returns nothing for an empty facts list', () => {

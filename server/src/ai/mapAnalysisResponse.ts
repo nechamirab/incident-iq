@@ -72,15 +72,43 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
     };
   });
 
-  const facts: ReasoningItem[] = response.facts.map((fact) => ({
-    id: createId('reasoning'),
-    category: 'fact',
-    statement: fact.statement,
-    explanation: fact.explanation,
-    evidenceIds: fact.evidenceIds,
-    confidence: fact.confidence,
-    reviewStatus: 'unreviewed',
-  }));
+  /**
+   * A fact is only ever kept in the verified `facts` collection if at least
+   * one of its cited evidence ids actually belongs to this incident. The
+   * AI-facing schema already requires every fact to cite *some* id
+   * (`AiFactSchema.evidenceIds.min(1)`), but that alone cannot catch a
+   * hallucinated id that merely looks valid -- only cross-checking against
+   * the incident's real evidence set (via {@link detectUnsupportedFacts})
+   * can. A fact that fails this check is downgraded into
+   * `unsupportedClaims` (below) instead of being silently kept as, or
+   * silently deleted from, the analysis -- it must never appear as a
+   * verified fact to a human investigator, a Markdown export, or a
+   * postmortem draft, all of which read only from `facts`. This is the
+   * only place that decides fact-vs-unsupported-claim, so the behavior is
+   * identical for every provider (mock, Anthropic, OpenAI) and every
+   * caller of this mapper.
+   */
+  const unsupportedResponseFacts = detectUnsupportedFacts(response.facts, knownEvidenceIds);
+  const unsupportedResponseFactSet = new Set(unsupportedResponseFacts);
+
+  const facts: ReasoningItem[] = response.facts
+    .filter((fact) => !unsupportedResponseFactSet.has(fact))
+    .map((fact) => ({
+      id: createId('reasoning'),
+      category: 'fact' as const,
+      statement: fact.statement,
+      explanation: fact.explanation,
+      evidenceIds: fact.evidenceIds,
+      confidence: fact.confidence,
+      reviewStatus: 'unreviewed' as const,
+    }));
+
+  for (const fact of unsupportedResponseFacts) {
+    validationWarnings.push(
+      `Fact "${fact.statement}" was moved to unsupportedClaims because none of its cited evidence ` +
+        `id(s) [${fact.evidenceIds.join(', ') || '(none)'}] exist on this incident.`,
+    );
+  }
 
   const assumptions: ReasoningItem[] = response.assumptions.map((assumption) => ({
     id: createId('reasoning'),
@@ -142,7 +170,7 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
   });
 
   const unsupportedClaims = Array.from(
-    new Set([...response.unsupportedClaims, ...detectUnsupportedFacts(response.facts, knownEvidenceIds)]),
+    new Set([...response.unsupportedClaims, ...unsupportedResponseFacts.map((fact) => fact.statement)]),
   );
 
   return {

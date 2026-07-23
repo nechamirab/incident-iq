@@ -8,10 +8,22 @@ import type { AiAnalysisResponse } from '../schemas/aiAnalysisResponse.schema.js
  * validation alone cannot catch this, since it only checks that
  * `evidenceIds` are strings, not that they refer to real evidence.
  *
+ * Covers every `evidenceIds`-bearing field of an incident-analysis
+ * response: facts, assumptions, timeline events, hypotheses (both
+ * supporting and contradicting evidence), reasoning risks (bias findings),
+ * and recommended actions. The skeptic-review and postmortem AI-facing
+ * schemas have no `evidenceIds` fields of their own to validate here --
+ * `AiSkepticReviewResponseSchema` deliberately omits `ignoredEvidenceIds`
+ * (computed by the backend from the run being reviewed, never supplied by
+ * the AI; see `mapSkepticReviewResponse.ts`), and the postmortem schema's
+ * fields are free-form prose/string-array content, not evidence-id
+ * references.
+ *
  * @param response A schema-validated AI analysis response.
  * @param knownEvidenceIds The incident's real evidence item ids.
  * @returns Human-readable warning strings, one per unknown reference found
- * (empty if every reference is valid).
+ * (empty if every reference is valid). Never throws, even if every
+ * `evidenceIds` array is empty.
  */
 export function findUnknownEvidenceReferences(
   response: AiAnalysisResponse,

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { mapAiResponseToAnalysisRun } from '../src/ai/mapAnalysisResponse.js';
+import { buildPostmortemPrompt } from '../src/ai/prompts/postmortemV1.js';
 import { sampleIncidents } from '../src/data/incidents/index.js';
 import { buildValidAiResponse } from './helpers/aiResponseFixtures.js';
+import type { AiProviderName } from '../../shared/types/analysisRun.js';
 
 const incident = sampleIncidents[0];
 const evidenceId = incident.evidence[0].id;
@@ -93,6 +95,73 @@ describe('mapAiResponseToAnalysisRun', () => {
     expect(run.unsupportedClaims).toContain(statement);
     expect(run.unsupportedClaims).toContain('A separately self-reported claim.');
     expect(run.unsupportedClaims.filter((c) => c === statement)).toHaveLength(1);
+  });
+
+  describe('unsupported-fact removal from the verified Facts collection', () => {
+    const supportedStatement = 'A fact with real evidence backing.';
+    const unsupportedStatement = 'A fact whose only citation is hallucinated.';
+
+    function mapWithMixedFacts(providerName: AiProviderName = 'mock') {
+      return mapAiResponseToAnalysisRun({
+        incident,
+        response: buildValidAiResponse(
+          {
+            facts: [
+              { statement: supportedStatement, explanation: 'x', evidenceIds: [evidenceId], confidence: 80 },
+              { statement: unsupportedStatement, explanation: 'x', evidenceIds: ['does-not-exist'], confidence: 50 },
+            ],
+          },
+          evidenceId,
+        ),
+        providerName,
+        model: 'test-model',
+        promptVersion: 'incident-analysis-v1',
+        durationMs: 1,
+        rawResponse: {},
+      });
+    }
+
+    it('keeps a fact with valid evidence under Facts', () => {
+      const run = mapWithMixedFacts();
+      expect(run.facts.map((f) => f.statement)).toContain(supportedStatement);
+    });
+
+    it('removes a fact with only an unknown evidence id from Facts', () => {
+      const run = mapWithMixedFacts();
+      expect(run.facts.map((f) => f.statement)).not.toContain(unsupportedStatement);
+    });
+
+    it('surfaces the removed fact under unsupportedClaims, not silently deleted', () => {
+      const run = mapWithMixedFacts();
+      expect(run.unsupportedClaims).toContain(unsupportedStatement);
+    });
+
+    it('explains why the fact was downgraded, in a validation warning', () => {
+      const run = mapWithMixedFacts();
+      expect(
+        run.validationWarnings.some(
+          (w) => w.includes(unsupportedStatement) && w.includes('unsupportedClaims') && w.includes('does-not-exist'),
+        ),
+      ).toBe(true);
+    });
+
+    it('does not pass the unsupported statement into the postmortem prompt', () => {
+      const run = mapWithMixedFacts();
+      const prompt = buildPostmortemPrompt(incident, run);
+      expect(prompt.user).not.toContain(unsupportedStatement);
+      expect(prompt.system).not.toContain(unsupportedStatement);
+    });
+
+    it('applies identically regardless of which provider produced the response', () => {
+      const mockRun = mapWithMixedFacts('mock');
+      const anthropicRun = mapWithMixedFacts('anthropic');
+      const openaiRun = mapWithMixedFacts('openai');
+
+      for (const run of [mockRun, anthropicRun, openaiRun]) {
+        expect(run.facts.map((f) => f.statement)).toEqual([supportedStatement]);
+        expect(run.unsupportedClaims).toContain(unsupportedStatement);
+      }
+    });
   });
 
   it('computes a real inputHash and a recent createdAt', () => {

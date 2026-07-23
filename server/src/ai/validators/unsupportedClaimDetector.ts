@@ -5,19 +5,21 @@ import type { AiFact } from '../schemas/aiAnalysisResponse.schema.js';
  * every fact to cite at least one evidence id, but if none of the ids it
  * cites actually belong to the incident (see
  * {@link findUnknownEvidenceReferences}), the fact has no real evidentiary
- * backing despite passing schema validation. Such facts are demoted --
- * their statement text is surfaced as an unsupported claim rather than
- * trusted as a fact.
+ * backing despite passing schema validation.
+ *
+ * This is the single source of truth for "is this fact unsupported" --
+ * {@link mapAiResponseToAnalysisRun} uses its result both to keep such
+ * facts out of the persisted `facts` collection and to populate
+ * `unsupportedClaims`, so a fact can never simultaneously appear as a
+ * verified fact and as an unsupported claim.
  *
  * @param facts The AI response's `facts` array.
  * @param knownEvidenceIds The incident's real evidence item ids.
- * @returns The statement text of every fact with no valid evidence backing.
+ * @returns The (same-reference) subset of `facts` with no valid evidence backing.
  */
 export function detectUnsupportedFacts(
   facts: readonly AiFact[],
   knownEvidenceIds: ReadonlySet<string>,
-): string[] {
-  return facts
-    .filter((fact) => !fact.evidenceIds.some((id) => knownEvidenceIds.has(id)))
-    .map((fact) => fact.statement);
+): AiFact[] {
+  return facts.filter((fact) => !fact.evidenceIds.some((id) => knownEvidenceIds.has(id)));
 }
