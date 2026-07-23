@@ -64,7 +64,10 @@ function tokenizeCsv(content: string): string[][] {
  * @param sourceName Original uploaded file name.
  * @param createdAt ISO timestamp recorded as when this evidence was ingested.
  * @returns One evidence item per data row (excluding the header row).
- * @throws {ApiError} When the file has no header row at all.
+ * @throws {ApiError} When the file is empty, has no header row, has empty
+ * or duplicate headers, or contains a data row whose column count doesn't
+ * match the header row (a strong signal the file wasn't parsed as
+ * intended, e.g. an unescaped comma or an inconsistent export).
  */
 export function parseCsvContent(
   content: string,
@@ -77,17 +80,51 @@ export function parseCsvContent(
     throw new ApiError(400, 'EMPTY_FILE', `"${sourceName}" is empty.`);
   }
 
-  const rows = tokenizeCsv(normalized).filter(
-    (row) => !(row.length === 1 && row[0]?.trim() === ''),
-  );
-
-  if (rows.length === 0) {
+  const rawRows = tokenizeCsv(normalized);
+  if (rawRows.length === 0) {
     throw new ApiError(400, 'EMPTY_FILE', `"${sourceName}" has no CSV rows.`);
   }
 
-  const headers = rows[0].map((header) => header.trim());
+  // The header row is read as-is (even if blank -- that's a real, reportable
+  // structural problem, checked next), but a "completely empty" *data* row
+  // is any row whose fields are all blank after trimming, not just a row
+  // that tokenized to a single empty field (e.g. a stray line of only
+  // commas, "  ,  ,  ").
+  const headers = rawRows[0].map((header) => header.trim());
 
-  return rows.slice(1).map((row, index) => {
+  if (headers.every((header) => header === '')) {
+    throw new ApiError(400, 'INVALID_CSV_STRUCTURE', `"${sourceName}" has no meaningful column headers.`);
+  }
+
+  const nonEmptyHeaders = headers.filter((header) => header !== '');
+  const duplicateHeaders = nonEmptyHeaders.filter(
+    (header, index) => nonEmptyHeaders.indexOf(header) !== index,
+  );
+  if (duplicateHeaders.length > 0) {
+    throw new ApiError(
+      400,
+      'INVALID_CSV_STRUCTURE',
+      `"${sourceName}" has duplicate column headers: ${Array.from(new Set(duplicateHeaders)).join(', ')}.`,
+    );
+  }
+
+  const dataRows = rawRows.slice(1).filter((row) => !row.every((field) => field.trim() === ''));
+  const malformedRowIndex = dataRows.findIndex((row) => row.length !== headers.length);
+  if (malformedRowIndex !== -1) {
+    const malformedRow = dataRows[malformedRowIndex];
+    throw new ApiError(
+      400,
+      'INVALID_CSV_STRUCTURE',
+      `"${sourceName}" row ${malformedRowIndex + 2} has ${malformedRow.length} column(s), but the ` +
+        `header row has ${headers.length}. Every row must have the same number of columns as the header.`,
+    );
+  }
+
+  if (dataRows.length === 0) {
+    throw new ApiError(400, 'EMPTY_FILE', `"${sourceName}" has no CSV data rows.`);
+  }
+
+  return dataRows.map((row, index) => {
     const record: Record<string, string> = {};
     headers.forEach((header, columnIndex) => {
       record[header || `column_${columnIndex + 1}`] = (row[columnIndex] ?? '').trim();

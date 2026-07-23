@@ -11,6 +11,7 @@ import type { AiAnalysisResponse } from './schemas/aiAnalysisResponse.schema.js'
 import { findUnknownEvidenceReferences } from './validators/evidenceReferenceValidator.js';
 import { detectUnsupportedFacts } from './validators/unsupportedClaimDetector.js';
 import { evaluateAnalysisQuality } from './validators/analysisQualityEvaluator.js';
+import { validateTimelinePlausibility } from './validators/timelinePlausibilityValidator.js';
 
 export interface MapAnalysisResponseParams {
   incident: Incident;
@@ -58,7 +59,10 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
   } = params;
 
   const knownEvidenceIds = new Set(incident.evidence.map((item) => item.id));
-  const validationWarnings = findUnknownEvidenceReferences(response, knownEvidenceIds);
+  const validationWarnings = [
+    ...findUnknownEvidenceReferences(response, knownEvidenceIds),
+    ...validateTimelinePlausibility(response.timeline, incident),
+  ];
 
   const qualityReport = evaluateAnalysisQuality(response, incident.evidence.length);
   const qualityWarnings = [
@@ -133,16 +137,23 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
     reviewStatus: 'unreviewed',
   }));
 
-  const timeline: TimelineEvent[] = response.timeline.map((event) => ({
-    id: createId('timeline'),
-    timestamp: event.timestamp,
-    title: event.title,
-    description: event.description,
-    evidenceIds: event.evidenceIds,
-    timestampType: event.timestampType,
-    confidence: event.confidence,
-    isInferred: event.isInferred,
-  }));
+  // Sorted server-side (once, at persistence time) rather than relying
+  // solely on the frontend's defensive sort -- real providers are not
+  // required to return events in chronological order, and the persisted
+  // record itself should already be correct for any other consumer
+  // (exports, the experiment framework, a future non-web client).
+  const timeline: TimelineEvent[] = response.timeline
+    .map((event) => ({
+      id: createId('timeline'),
+      timestamp: event.timestamp,
+      title: event.title,
+      description: event.description,
+      evidenceIds: event.evidenceIds,
+      timestampType: event.timestampType,
+      confidence: event.confidence,
+      isInferred: event.isInferred,
+    }))
+    .sort((a, b) => (a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0));
 
   const reasoningRisks: BiasFinding[] = response.reasoningRisks.map((risk) => ({
     id: createId('bias'),

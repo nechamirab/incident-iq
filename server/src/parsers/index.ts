@@ -41,6 +41,14 @@ export function parseUploadedFile(
   switch (extension) {
     case '.txt':
     case '.log':
+      if (content.trim().length === 0) {
+        // The frontend already rejects a 0-byte file before upload, but the
+        // server must not rely on that alone -- a whitespace-only file
+        // (which the client-side size check cannot catch) or a direct API
+        // call bypassing the UI must be rejected here too, not silently
+        // accepted as zero evidence items.
+        throw new ApiError(400, 'EMPTY_FILE', `"${file.originalName}" is empty.`);
+      }
       return parseTextContent(content, incidentId, 'uploaded-file', file.originalName, createdAt);
     case '.json':
       return parseJsonContent(content, incidentId, file.originalName, createdAt);

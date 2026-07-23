@@ -97,6 +97,60 @@ describe('mapAiResponseToAnalysisRun', () => {
     expect(run.unsupportedClaims.filter((c) => c === statement)).toHaveLength(1);
   });
 
+  it('sorts timeline events chronologically, regardless of the order the provider returned them in', () => {
+    const run = mapWith({
+      timeline: [
+        {
+          timestamp: '2026-06-14T15:00:00Z',
+          title: 'Third',
+          description: 'x',
+          evidenceIds: [],
+          timestampType: 'exact',
+          confidence: 80,
+          isInferred: false,
+        },
+        {
+          timestamp: '2026-06-14T14:00:00Z',
+          title: 'First',
+          description: 'x',
+          evidenceIds: [],
+          timestampType: 'exact',
+          confidence: 80,
+          isInferred: false,
+        },
+        {
+          timestamp: '2026-06-14T14:30:00Z',
+          title: 'Second',
+          description: 'x',
+          evidenceIds: [],
+          timestampType: 'exact',
+          confidence: 80,
+          isInferred: false,
+        },
+      ],
+    });
+
+    expect(run.timeline.map((event) => event.title)).toEqual(['First', 'Second', 'Third']);
+  });
+
+  it('records a timeline-plausibility warning for an implausible event timestamp', () => {
+    const run = mapWith({
+      timeline: [
+        {
+          timestamp: '2099-01-01T00:00:00Z',
+          title: 'Implausible event',
+          description: 'x',
+          evidenceIds: [],
+          timestampType: 'exact',
+          confidence: 80,
+          isInferred: false,
+        },
+      ],
+    });
+
+    expect(run.validationWarnings.some((w) => w.includes('Implausible event'))).toBe(true);
+  });
+
   describe('unsupported-fact removal from the verified Facts collection', () => {
     const supportedStatement = 'A fact with real evidence backing.';
     const unsupportedStatement = 'A fact whose only citation is hallucinated.';

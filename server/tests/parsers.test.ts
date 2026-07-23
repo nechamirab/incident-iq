@@ -228,13 +228,70 @@ describe('parseCsvContent', () => {
     expect(items[0].metadata.detail).toBe('5000ms');
   });
 
-  it('returns no evidence for a header-only file', () => {
-    const items = parseCsvContent('timestamp,level,message\n', INCIDENT_ID, 'events.csv', CREATED_AT);
-    expect(items).toEqual([]);
+  it('throws an ApiError for a header-only file with no data rows (no meaningful evidence content)', () => {
+    expect(() => parseCsvContent('timestamp,level,message\n', INCIDENT_ID, 'events.csv', CREATED_AT)).toThrow(
+      /no CSV data rows/,
+    );
   });
 
   it('throws an ApiError for an empty file', () => {
     expect(() => parseCsvContent('', INCIDENT_ID, 'empty.csv', CREATED_AT)).toThrow(/is empty/);
+  });
+
+  it('throws an ApiError for empty (all-blank) column headers', () => {
+    const csv = ' , , \n1,2,3';
+    expect(() => parseCsvContent(csv, INCIDENT_ID, 'events.csv', CREATED_AT)).toThrow(
+      /no meaningful column headers/,
+    );
+  });
+
+  it('throws an ApiError for duplicate column headers', () => {
+    const csv = 'level,level,message\nERROR,WARN,timeout';
+    expect(() => parseCsvContent(csv, INCIDENT_ID, 'events.csv', CREATED_AT)).toThrow(
+      /duplicate column headers/,
+    );
+  });
+
+  it('throws an ApiError for a data row with too few columns', () => {
+    const csv = 'timestamp,level,message\n2026-06-14T14:33:00Z,ERROR';
+    expect(() => parseCsvContent(csv, INCIDENT_ID, 'events.csv', CREATED_AT)).toThrow(/row 2 has 2 column/);
+  });
+
+  it('throws an ApiError for a data row with too many columns', () => {
+    const csv = 'a,b\n1,2,3';
+    expect(() => parseCsvContent(csv, INCIDENT_ID, 'events.csv', CREATED_AT)).toThrow(/row 2 has 3 column/);
+  });
+
+  it('treats a completely blank data row (only commas) as empty, not a structural error', () => {
+    const csv = 'a,b\n1,2\n , \n3,4';
+    const items = parseCsvContent(csv, INCIDENT_ID, 'events.csv', CREATED_AT);
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.metadata.a)).toEqual(['1', '3']);
+  });
+
+  it('still accepts valid quoted fields containing commas alongside strict column-count validation', () => {
+    const csv = 'message,detail\n"Timeout, retrying, again",5000ms';
+    const items = parseCsvContent(csv, INCIDENT_ID, 'events.csv', CREATED_AT);
+    expect(items).toHaveLength(1);
+    expect(items[0].metadata.message).toBe('Timeout, retrying, again');
+  });
+});
+
+describe('parseUploadedFile: empty .txt/.log rejection', () => {
+  it('throws an ApiError for an empty .txt upload', () => {
+    expect(() =>
+      parseUploadedFile({ originalName: 'notes.txt', buffer: Buffer.from('') }, INCIDENT_ID, CREATED_AT),
+    ).toThrow(/is empty/);
+  });
+
+  it('throws an ApiError for a whitespace-only .log upload', () => {
+    expect(() =>
+      parseUploadedFile(
+        { originalName: 'app.log', buffer: Buffer.from('   \n  \n\t') },
+        INCIDENT_ID,
+        CREATED_AT,
+      ),
+    ).toThrow(/is empty/);
   });
 });
 

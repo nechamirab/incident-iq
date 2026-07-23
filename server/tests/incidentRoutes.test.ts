@@ -175,6 +175,64 @@ describe('POST /api/incidents', () => {
     expect(body<null>(response).error?.code).toBe('UNSUPPORTED_FILE_TYPE');
   });
 
+  it('rejects a file whose MIME type is a concrete mismatch for its extension', async () => {
+    const response = await request(app)
+      .post('/api/incidents')
+      .field('title', 'Checkout failures')
+      .field('description', 'Customers cannot complete checkout.')
+      .field('severity', 'high')
+      .field('affectedService', 'checkout-api')
+      .field('detectedAt', '2026-07-01T00:00:00Z')
+      .attach('files', Buffer.from('line one'), { filename: 'notes.txt', contentType: 'image/png' });
+
+    expect(response.status).toBe(400);
+    expect(body<null>(response).error?.code).toBe('UNSUPPORTED_MIME_TYPE');
+  });
+
+  it('accepts a file with a generic/unknown MIME type, deferring to extension and parser validation', async () => {
+    const response = await request(app)
+      .post('/api/incidents')
+      .field('title', 'Checkout failures')
+      .field('description', 'Customers cannot complete checkout.')
+      .field('severity', 'high')
+      .field('affectedService', 'checkout-api')
+      .field('detectedAt', '2026-07-01T00:00:00Z')
+      .attach('files', Buffer.from('line one'), {
+        filename: 'notes.txt',
+        contentType: 'application/octet-stream',
+      });
+
+    expect(response.status).toBe(201);
+  });
+
+  it('rejects an empty .txt upload as EMPTY_FILE rather than silently adding zero evidence items', async () => {
+    const response = await request(app)
+      .post('/api/incidents')
+      .field('title', 'Checkout failures')
+      .field('description', 'Customers cannot complete checkout.')
+      .field('severity', 'high')
+      .field('affectedService', 'checkout-api')
+      .field('detectedAt', '2026-07-01T00:00:00Z')
+      .attach('files', Buffer.from(''), 'empty.txt');
+
+    expect(response.status).toBe(400);
+    expect(body<null>(response).error?.code).toBe('EMPTY_FILE');
+  });
+
+  it('rejects a CSV upload with inconsistent column counts', async () => {
+    const response = await request(app)
+      .post('/api/incidents')
+      .field('title', 'Checkout failures')
+      .field('description', 'Customers cannot complete checkout.')
+      .field('severity', 'high')
+      .field('affectedService', 'checkout-api')
+      .field('detectedAt', '2026-07-01T00:00:00Z')
+      .attach('files', Buffer.from('a,b\n1,2,3'), 'events.csv');
+
+    expect(response.status).toBe(400);
+    expect(body<null>(response).error?.code).toBe('INVALID_CSV_STRUCTURE');
+  });
+
   it('rejects a file larger than the size limit', async () => {
     const response = await request(app)
       .post('/api/incidents')
