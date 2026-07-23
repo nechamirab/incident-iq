@@ -39,6 +39,20 @@ The system is designed to always separate **facts** (directly supported by evide
 > incident after creation instead of only at intake, and the workspace now tells you when new
 > evidence has outpaced the last analysis run. See "Incident lifecycle and guided investigation"
 > below for details.
+>
+> **Compliance-closure pass (current).** A subsequent, evidence-audited pass closed the gaps recorded
+> in `docs/requirements-compliance-audit.md`: unsupported facts are now moved out of `facts` into
+> `unsupportedClaims` rather than silently dropped; a new `incident-analysis-v2` prompt plus a
+> provider-independent quality gate and a targeted, at-most-once completion-repair pass address real,
+> documented gaps found in prior real-OpenAI testing (empty reasoning risks, empty contradicting
+> evidence); a human-only hypothesis-review workflow (including a `confirmed-by-human` status the AI
+> can never set itself) was added; sensitive content is now redacted from every request sent to a real
+> AI provider; file-upload validation was hardened (empty files, malformed CSVs, MIME/extension
+> mismatches); all six bundled sample incidents now have evaluation fixtures; and a critical-AI
+> experiment framework (`npm run ai:experiment`, see `docs/experiments/`) was added. See
+> `docs/requirements-compliance-closure.md` for the full, itemized before/after record, and
+> `docs/reflective-report.md` for the project's reflective account. **Not done as part of this pass:
+> recording the project's demo video** -- see "Demo" below.
 
 ## Architecture
 
@@ -156,7 +170,15 @@ and persists the result. The pipeline (`server/src/ai/`, orchestrated by
   addition to `provider: 'mock'`), so a fallback result is never mistaken for a real AI-generated one.
 - **Versioned prompts** (`ai/prompts/`) — `incident-analysis-v1` builds the system/user prompt from
   the incident and its evidence (each item labeled with its exact id so the model can cite it);
-  `repair-invalid-json-v1` is a one-shot correction prompt used only on retry.
+  `incident-analysis-v2` is the current production default, adding stronger, explicit instructions
+  (actively search for contradicting evidence per hypothesis, ground reasoning risks in the specific
+  incident, require concrete evidence/hypothesis-linked recommended actions) targeting real gaps
+  found in prior real-OpenAI testing -- `v1` is preserved unchanged for prompt-comparison experiments
+  (`docs/experiments/`), not used in normal operation; `repair-invalid-json-v1` is a one-shot
+  correction prompt used only when a response fails schema validation;
+  `targeted-completion-repair-v1` is a separate, at-most-once repair pass for a response that is
+  schema-valid but incomplete (empty reasoning risks, empty recommended actions, etc. -- see
+  `docs/prompts.md` for the full list and rules of each prompt).
 - **Structured output schema** (`ai/schemas/aiAnalysisResponse.schema.ts`) — a Zod schema distinct
   from the persisted `AnalysisRun`/`Hypothesis`/etc. schemas in `shared/schemas/`: every
   system-managed field (`id`, `reviewStatus`, a hypothesis's lifecycle `status`) is omitted, since
@@ -166,11 +188,21 @@ and persists the result. The pipeline (`server/src/ai/`, orchestrated by
   just prompt instructions.
 - **Validation** (`ai/validators/`) — `validateAIResponse` extracts JSON (tolerating a stray
   markdown code fence) and validates it against the schema; `findUnknownEvidenceReferences` flags
-  any cited evidence id that isn't real (hallucination detection Zod alone can't do);
-  `detectUnsupportedFacts` demotes a "fact" whose only cited evidence turned out to be invalid.
+  any cited evidence id that isn't real, checked across every reference-bearing field (facts,
+  timeline, hypotheses' supporting/contradicting lists, reasoning risks, recommended actions);
+  `detectUnsupportedFacts` demotes a "fact" whose only cited evidence turned out to be invalid --
+  moved into `unsupportedClaims` with a validation warning explaining why, never silently deleted,
+  and applied identically across mock and real providers; `analysisQualityEvaluator.ts` is a
+  separate, provider-independent *quality* gate (never invalidates a response -- an incident can
+  legitimately have no contradicting evidence or no detectable bias) that surfaces completeness and
+  quality warnings for a human to see; `timelinePlausibilityValidator.ts` warns (never rejects) on
+  implausible event timestamps.
 - **Retry** — an invalid response (bad JSON or a schema mismatch) is retried exactly once with a
   repair prompt describing what was wrong. A second failure raises a controlled `AI_RESPONSE_INVALID`
-  error rather than ever persisting or returning malformed data.
+  error rather than ever persisting or returning malformed data. Separately, a schema-*valid* but
+  *incomplete* analysis response (see the quality gate above) gets at most one additional targeted
+  completion-repair request limited to the deficient sections -- `facts` and `summary` are never
+  altered by this pass, and there is no further retry beyond it either way.
 - **`mapAiResponseToAnalysisRun`** — converts the validated response into a persisted
   `AnalysisRun`: assigns real ids to every nested item, resolves each `tempId` to its real
   hypothesis id (dropping and warning on any that don't resolve), force-sets
@@ -255,6 +287,52 @@ separate notes field.
   footer), which the Postmortem tab offers as a clipboard copy or a `.md` file download -- neither
   requires the backend.
 
+### Human hypothesis review
+
+`PATCH /api/incidents/:incidentId/hypotheses/:hypothesisId/status`
+(`server/src/controllers/hypothesisController.ts`) is the one and only path that can transition a
+hypothesis's status, including to `confirmed-by-human` -- the AI-facing schema doesn't even expose
+that status value, so the AI cannot set it even indirectly. Setting `status` to `confirmed-by-human`
+additionally requires `confirmed: true` in the same request body, enforced by a Zod `.refine()` at
+the API boundary (`hypothesisStatusUpdate.schema.ts`), not merely a frontend dialog. An optional
+`humanReviewNote` records the reviewer's own reasoning; `reviewedAt`/`previousStatus`/`newStatus` are
+recorded alongside the transition. The Hypotheses tab's status control opens a confirmation dialog
+before confirming specifically, explaining that this records a human conclusion, not an AI one. The
+frontend mutation (`useUpdateHypothesisStatus`) applies an optimistic update with rollback-on-error,
+matching the pattern already used for incident status updates.
+
+### Privacy and redaction
+
+Before a request reaches a real AI provider (`AnthropicAIProvider`/`OpenAIProvider`), its prompt
+passes through `redactPromptForExternalProvider` (`ai/redactSensitiveContent.ts`), which returns a
+brand-new, redacted `AIPrompt` -- the original prompt object, and the incident/evidence it was built
+from, are never mutated, so everything stored locally and shown in the UI remains the original,
+unredacted text. Detected categories: email addresses, bearer tokens, well-known API-key prefixes
+(`sk-`/`pk-`/`AKIA`/`ghp_`/`xox...`), password/secret/access-token/refresh-token/session-id
+key-value pairs, `Authorization`/`Cookie` headers, and card-number-shaped digit runs. Only safe
+metadata is ever recorded -- `redactionApplied`, `redactedValueCount`, `redactionCategories` -- never
+the removed values themselves; these three fields are part of the `AIProvider` interface and are
+recorded on every `AnalysisRun`/`SkepticReview`/`Postmortem`, always `false`/`0`/`[]` for
+`MockAIProvider` (which never sends anything externally and may use the original synthetic evidence
+as-is -- this absence of redaction is itself part of how the architecture distinguishes external vs.
+local behavior). This is explicitly a **prototype-level safeguard** against common accidental leaks,
+not a production data-loss-prevention system -- see `docs/ethical-and-professional-risks.md` for the
+documented limitation in full.
+
+### Critical AI experiments
+
+`npm run ai:experiment` (`server/src/experiments/`) is a repeatable, safe harness for comparing AI
+behavior: prompt v1 vs. v2, mock vs. a real provider, a "prompt sensitivity" variant that argues
+against the first apparent cause, and skeptic-review quality against six fixed criteria. It is never
+wired into `npm test` and makes a real, billable provider call only when `--real`, `--provider=...`,
+`RUN_REAL_AI_EXPERIMENTS=true`, a configured API key, and explicit approval (`--yes` or an
+interactive confirmation showing the exact call count) are **all** present -- otherwise every
+experiment still completes in mock-only mode and honestly records the real-provider leg as
+`"not-run"`, with the specific reason, rather than inventing or silently omitting it. Results are
+saved to `docs/experiments/<experiment>/latest.{json,md}`, overwriting the previous run. See
+`docs/experiments/README.md` for the full contract, including why two of the four experiments are
+only meaningful with a real provider (`MockAIProvider` ignores prompt text by design).
+
 ### Dashboard and navigation
 
 `/` (`DashboardPage`) lists every incident -- bundled samples plus any the user created -- most
@@ -309,7 +387,11 @@ link.
   *plus* a numeric value *plus* a text descriptor ("Moderate confidence") — never color alone —
   supporting and contradicting evidence as visually distinct groups (an empty contradicting list
   says so explicitly, rather than being blank), assumptions, the recommended test, expected
-  result, and status (the AI can only ever leave a hypothesis `proposed`).
+  result, and status. The AI can only ever leave a hypothesis `proposed` -- a status control lets a
+  human reviewer explicitly transition it to `testing`/`supported`/`weakened`/`rejected`, or, via a
+  confirmation dialog requiring an explicit `confirmed: true` and an optional note, to
+  `confirmed-by-human` (`PATCH .../hypotheses/:hypothesisId/status`; see "Human hypothesis review"
+  below) -- the AI can never set that status itself, at either the frontend or backend layer.
 - **Facts & Assumptions** — facts, assumptions, and unsupported claims are always rendered as
   three visually distinct groups, never mixed. Each fact/assumption has a
   `ReviewStatusControl` wired to `PATCH .../statements/:statementId/review`
@@ -415,10 +497,16 @@ submission.
 
 ### Mock data and persistence
 
-`server/src/data/incidents/` ships three realistic, deliberately ambiguous synthetic incidents
-(e-commerce checkout failure, course-registration slowdown, mobile login failure) — each with
-8+ evidence items mixing plausible causes, red herrings, and contradictory signals, so no single
-log line gives away the root cause. `server/src/repositories/` defines an `IncidentRepository`
+`server/src/data/incidents/` ships six realistic, deliberately ambiguous synthetic incidents
+(e-commerce checkout failure, course-registration slowdown, mobile login failure, database
+connection leak, payment-gateway timeout, async-queue backlog) — each with 8+ evidence items mixing
+plausible causes, red herrings, and contradictory signals, so no single log line gives away the root
+cause. Every one of the six has a matching evaluation fixture
+(`server/tests/fixtures/scenarioEvaluations/`) recording its expected facts, at least three plausible
+hypotheses (including a deliberate evidence-contradicted decoy), which evidence should challenge the
+leading explanation, distracting/missing-information evidence, and expected reasoning risks -- used
+by `scenarioEvaluations.test.ts` to keep every scenario's ambiguity and evidence-grounding
+machine-checked, not just asserted in prose. `server/src/repositories/` defines an `IncidentRepository`
 interface and an in-memory implementation seeded from that data; later stages' controllers will
 depend only on the interface, so a real database can be swapped in without touching calling code.
 
@@ -436,17 +524,29 @@ the description becomes a single evidence item.
 
 Uploaded files (`.txt`, `.log`, `.json`, `.csv`, up to 2 MB each, 10 files per incident) are kept
 in memory only (never written to disk, so a file name can never influence a server filesystem
-path) and dispatched by extension to a dedicated parser:
+path), validated on **both** extension and MIME type (`middleware/upload.ts` -- a concrete mismatch
+like an image uploaded as `.txt` is rejected; a generic/unknown MIME type like
+`application/octet-stream` is tolerated, since browsers report it inconsistently, and extension plus
+parser-level validation remain the authoritative checks), and dispatched by extension to a dedicated
+parser:
 
-- **`.txt` / `.log`** — one evidence item per non-empty line.
+- **`.txt` / `.log`** — one evidence item per non-empty line. An empty or whitespace-only file is
+  rejected server-side (not merely by frontend validation) with a standard error.
 - **`.json`** — one evidence item per array element (or a single item for a top-level object),
   with a best-effort timestamp extracted from a recognizable field.
-- **`.csv`** — one evidence item per data row, using the header row as field names.
+- **`.csv`** — one evidence item per data row, using a hand-rolled RFC-4180-style tokenizer that
+  correctly handles quoted fields containing commas and escaped `""` quotes. Rejected with a clear,
+  specific error: empty/blank header rows, duplicate headers, rows with an inconsistent column count
+  relative to the header, and a file with no meaningful data rows at all.
 
-Every parser only ever reads file content as text or parses it with `JSON.parse` / a hand-rolled
-CSV tokenizer — uploaded content is never evaluated or executed. All evidence extraction (both
-pasted text and uploaded files) is exercised end-to-end by `POST /api/incidents`, which creates
-the incident and its full evidence list in one request.
+Every parser only ever reads file content as text or parses it with `JSON.parse` / the CSV
+tokenizer — uploaded content is never evaluated or executed. All evidence extraction (both pasted
+text and uploaded files) is exercised end-to-end by `POST /api/incidents`, which creates the
+incident and its full evidence list in one request. Timeline-eligible evidence is sorted
+chronologically at persistence time (`mapAnalysisResponse.ts`, not only defensively on the frontend),
+and a timeline-plausibility validator produces *warnings* (never rejections) for events far outside
+the incident's window, inferred timestamps presented as exact, or invalid chronological relationships
+-- legitimate pre-incident/historical evidence is never treated as automatically invalid.
 
 ## Technology stack
 
@@ -516,13 +616,21 @@ incident-iq/
         mapSkepticReviewResponse.ts  # Validated AI response -> persisted SkepticReview
         mapPostmortemResponse.ts     # Validated AI response -> persisted Postmortem
         runProviderWithRetry.ts      # Shared validate-then-retry-once orchestration
+        redactSensitiveContent.ts    # Redaction applied to real-provider request payloads only
+        mergeCompletionRepair.ts     # Merges a targeted completion-repair response, facts/summary untouched
+      experiments/           # Critical-AI experiment framework (npm run ai:experiment), see docs/experiments/
       utils/                # ApiError, id generation, text normalization, input hashing
-    tests/                 # Vitest + Supertest (schemas, parsers, services, AI pipeline, API routes)
+    tests/                 # Vitest + Supertest (schemas, parsers, services, AI pipeline, API routes, experiments)
   shared/
     schemas/               # Zod schemas (source of truth for every domain model)
     types/                 # TypeScript types inferred from the Zod schemas
     constants/              # File-upload limits, evidence-field-to-source-type mapping
   tests/                   # Frontend pure-logic Vitest tests (schemas, utils, store)
+  docs/                    # requirements-compliance-audit.md/-closure.md, architecture.md, prompts.md,
+                            # ai-tools-and-apis.md, ethical-and-professional-risks.md,
+                            # bias-and-fallacy-analysis.md, demo-script.md, reflective-report.md,
+                            # experiments/ (critical-AI-experiment output)
+  examples/                # Synthetic, schema-valid example incident/analysis/review/postmortem artifacts
   .env.example
   package.json             # Frontend package + npm workspaces root
 ```
@@ -558,6 +666,7 @@ cp .env.example .env
 | `OPENAI_MODEL`         | backend  | Optional; which OpenAI model to call. Defaults to `gpt-5.1`. |
 | `ALLOW_MOCK_FALLBACK`  | backend  | `true` or `false` (default `false`; any other value fails fast at startup). When `true` *and* `AI_PROVIDER` is `anthropic`/`openai` *and* that provider's key is missing, AI requests are served by `MockAIProvider` instead of erroring — every such result is recorded with `provider: 'mock'`, `configuredProvider: 'anthropic'|'openai'`, `fallbackUsed: true`, and a `fallbackReason`, so it's never mistaken for real output. |
 | `VITE_API_BASE_URL`    | frontend | Base URL the frontend uses to reach the backend (default `http://localhost:4001`). |
+| `RUN_REAL_AI_EXPERIMENTS` | backend (experiments only) | Must be exactly `true` for `npm run ai:experiment -- --real ...` to make any real, billable provider call. Never read by the main application -- see `docs/experiments/README.md`. |
 
 The backend loads `.env` from the repository root (`server/src/config/env.ts`, via `dotenv`) before
 anything else reads `process.env` — the config module is imported first by every route/service/
@@ -727,7 +836,17 @@ npm run test:client   # frontend only (Vitest, node environment)
 npm run test --workspace=server   # backend only (Vitest + Supertest)
 ```
 
-497 tests total:
+858 tests total (709 backend, 149 frontend) as of the compliance-closure pass -- run `npm run test`
+to reproduce this count. The historical breakdown below (497 tests as of Stage 10/post-Stage-10
+polish) is preserved for context; the compliance-closure pass on top of it added coverage for:
+unsupported-fact handling and category-aware evidence validation; the `v2` prompt, quality gate, and
+completion-repair pass; the human hypothesis-review route/service/schema, frontend and backend;
+redaction (unit tests per category, both real providers); file-upload hardening (empty files,
+malformed CSVs, MIME/extension mismatches); server-side timeline sorting and the plausibility
+validator; evaluation fixtures for all six sample incidents; and the critical-AI-experiment
+framework's pure logic (the real-call safety gate, run/format/comparison helpers, and the six
+skeptic-review criteria) -- see `docs/requirements-compliance-closure.md` for the itemized record of
+what changed and why.
 
 - **Backend** (`server/tests/`, 354 tests) — everything from prior stages, plus this pass's incident
   lifecycle and evidence-addition coverage: `computeResolvedAt`'s full transition matrix (resolve,
@@ -796,11 +915,20 @@ below for how to confirm the real integration works end to end with your own key
   there is no id-level link between a specific action and a specific question — `openQuestions` is
   a plain `string[]` on `AnalysisRun`, not a list of objects with ids, matching the original data
   model. The connection is presentational (shown side by side), not a foreign key.
-- Redaction of sensitive values before sending evidence to a real AI provider is still not
-  implemented (unchanged from Stage 4) — evidence is sent to Anthropic/OpenAI as-is when
-  `AI_PROVIDER=anthropic`/`AI_PROVIDER=openai`.
+- Redaction before sending evidence to a real AI provider (see "Privacy and redaction" above) is
+  explicitly a **prototype-level** safeguard: it targets specific, well-known secret shapes by
+  regular expression, not full PII/entity recognition or context-aware redaction. See
+  `docs/ethical-and-professional-risks.md` for the full, honest limitation.
 - No full-page/component-level frontend test suite (React Testing Library) — deliberately out of
   scope for the full ten-stage plan (see "Testing" above), not merely deferred.
+- Real-provider verification exists only for OpenAI (a prior development session's manual testing,
+  documented in `docs/requirements-compliance-audit.md`); Anthropic is architecturally supported and
+  unit-tested against a mocked SDK client, but has no equivalent real-call verification recorded.
+- Two of the eight schema-supported reasoning-risk types (`overconfidence-bias`, `hindsight-bias`)
+  have no deterministic `MockAIProvider` heuristic and so cannot be demonstrated without a real
+  provider call -- see `docs/bias-and-fallacy-analysis.md`.
+- There is no authentication/authorization -- every `/api/*` route is open to anyone who can reach
+  the backend; this is a single-tenant prototype, stated explicitly rather than assumed obvious.
 - No browser tool is available in this environment to click through the new Postmortem UI (or any
   UI, across all ten stages) — typecheck, lint, the full test suite, and a production build were
   all verified at every stage; this stage's live smoke test additionally confirmed the production
@@ -809,9 +937,35 @@ below for how to confirm the real integration works end to end with your own key
   error path (400 with no analysis yet, 400 with no draft yet to edit, 404 for a missing incident,
   400 for an invalid PATCH field type) against a running server.
 
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| `docs/architecture.md` | Full system architecture: frontend/backend/shared layers, the AI provider pipeline, redaction, validation/repair, the three AI workflows, human-in-the-loop points, caching, security boundaries, and prototype limitations. |
+| `docs/prompts.md` | Every AI prompt used at runtime: purpose, inputs, expected output, safety rules, and version history. |
+| `docs/ai-tools-and-apis.md` | Every AI tool/API involved in building and running this project (OpenAI, Anthropic, Mock, Claude Code as a development aid), what each was verified to do, and what wasn't. |
+| `docs/ethical-and-professional-risks.md` | Over-trust, definitive-root-cause claims, uncertainty communication, what should never be sent externally, private-data protection, responsibility for harmful recommendations, and supporting (not replacing) human judgment. |
+| `docs/bias-and-fallacy-analysis.md` | Six of the eight schema-supported biases/fallacies in depth, with concrete sample-scenario examples and an honest account of what real-provider testing did and did not surface. |
+| `docs/experiments/README.md` | The critical-AI experiment framework's four experiments, real-call safety contract, and current (mock-only) results. |
+| `docs/demo-script.md` | The planned walkthrough for the (not yet recorded) demo video. |
+| `examples/README.md` | Synthetic, schema-valid example incident/analysis/skeptic-review/postmortem artifacts. |
+| `docs/requirements-compliance-audit.md` | The original, evidence-based compliance audit this closure pass was driven by. |
+| `docs/requirements-compliance-closure.md` | The itemized before/after record of what this compliance-closure pass resolved, improved, or left as a documented limitation. |
+| `docs/reflective-report.md` | The project's reflective report. |
+
+## Demo
+
+Demo video: **to be recorded.** See `docs/demo-script.md` for the planned walkthrough (scenario,
+screen-by-screen talking points, and timing). No video exists yet -- this section will be updated
+with a real link once one is recorded; until then, no claim is made that a demo video exists.
+
 ## Roadmap
 
-All ten planned stages are complete: shared models & mock data, incident input & file upload, AI
-provider architecture, evidence workspace, timeline & hypotheses, reasoning-risk detection,
-critical AI review, incident dashboard & navigation, postmortem export, and final testing/polish.
-See "Known limitations" above for what's deliberately still out of scope.
+All ten originally planned stages are complete: shared models & mock data, incident input & file
+upload, AI provider architecture, evidence workspace, timeline & hypotheses, reasoning-risk
+detection, critical AI review, incident dashboard & navigation, postmortem export, and final
+testing/polish. A subsequent compliance-closure pass (see the status note near the top of this file)
+addressed every code-level gap recorded in `docs/requirements-compliance-audit.md` and added the
+documentation, example artifacts, and critical-AI-experiment framework referenced above. See "Known
+limitations" for what remains deliberately out of scope, and `docs/requirements-compliance-closure.md`
+for future-improvement recommendations tied to specific, still-open audit items.

@@ -1,0 +1,187 @@
+{
+  "id": "sample-db-connection-leak",
+  "title": "Order service failing with database connection-pool exhaustion",
+  "description": "orders-service has been intermittently returning 500 errors since roughly 09:40 UTC, with logs pointing to database connection-pool exhaustion. A deploy shipped shortly before reports started; a marketing campaign also drove a traffic increase around the same time.",
+  "scenarioType": "database-connection-leak",
+  "status": "draft",
+  "severity": "high",
+  "affectedService": "orders-service",
+  "startedAt": "2026-07-15T09:40:00Z",
+  "detectedAt": "2026-07-15T10:12:00Z",
+  "resolvedAt": null,
+  "resolutionNotes": null,
+  "createdAt": "2026-07-15T10:12:00Z",
+  "updatedAt": "2026-07-15T10:12:00Z",
+  "analysisRuns": [],
+  "skepticReviews": [],
+  "postmortem": null,
+  "evidence": [
+    {
+      "id": "sample-db-connection-leak-ev-01",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "incident-description",
+      "sourceName": "Incident report",
+      "originalContent": "orders-service has been intermittently returning 500 errors since roughly 09:40 UTC, with logs pointing to database connection-pool exhaustion. A deploy shipped shortly before reports started; a marketing campaign also drove a traffic increase around the same time.",
+      "normalizedContent": "orders-service has been intermittently returning 500 errors since roughly 09:40 UTC, with logs pointing to database connection-pool exhaustion. A deploy shipped shortly before reports started; a marketing campaign also drove a traffic increase around the same time.",
+      "timestamp": "2026-07-15T10:12:00Z",
+      "lineNumber": null,
+      "metadata": {},
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-02",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "deployment-note",
+      "sourceName": "deploy-log-orders-service",
+      "originalContent": "orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.",
+      "normalizedContent": "orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.",
+      "timestamp": "2026-07-15T09:35:00Z",
+      "lineNumber": null,
+      "metadata": {
+        "version": "v5.2.0",
+        "service": "orders-service",
+        "poolMaxSize": 30,
+        "poolMaxSizeChanged": false
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-03",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "monitoring-alert",
+      "sourceName": "Datadog",
+      "originalContent": "orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.",
+      "normalizedContent": "orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.",
+      "timestamp": "2026-07-15T10:05:00Z",
+      "lineNumber": null,
+      "metadata": {
+        "metric": "pool_utilization_pct",
+        "from": 42,
+        "to": 100,
+        "windowMinutes": 25
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-04",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "monitoring-alert",
+      "sourceName": "Marketing analytics dashboard",
+      "originalContent": "orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.",
+      "normalizedContent": "orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.",
+      "timestamp": "2026-07-15T09:30:00Z",
+      "lineNumber": null,
+      "metadata": {
+        "metric": "request_volume_pct_change",
+        "value": 35,
+        "campaign": "summer-promo"
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-05",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "api-error",
+      "sourceName": "orders-api-error.log",
+      "originalContent": "POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.",
+      "normalizedContent": "POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.",
+      "timestamp": "2026-07-15T09:50:00Z",
+      "lineNumber": 271,
+      "metadata": {
+        "httpStatus": 500,
+        "count": 63
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-06",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "database-error",
+      "sourceName": "postgres-orders-primary.log",
+      "originalContent": "FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.",
+      "normalizedContent": "FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.",
+      "timestamp": "2026-07-15T09:52:00Z",
+      "lineNumber": 1440,
+      "metadata": {
+        "database": "orders-primary",
+        "count": 19
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-07",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "application-log",
+      "sourceName": "orders-service.log",
+      "originalContent": "INFO: \"session closed\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \"session opened\" frequency stayed roughly constant.",
+      "normalizedContent": "INFO: \"session closed\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \"session opened\" frequency stayed roughly constant.",
+      "timestamp": "2026-07-15T09:45:00Z",
+      "lineNumber": 3390,
+      "metadata": {
+        "level": "INFO",
+        "sessionsClosedPerMinBefore": 48,
+        "sessionsClosedPerMinAfter": 11
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-08",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "monitoring-alert",
+      "sourceName": "Datadog",
+      "originalContent": "Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.",
+      "normalizedContent": "Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.",
+      "timestamp": "2026-07-15T09:41:00Z",
+      "lineNumber": null,
+      "metadata": {
+        "metric": "io_wait",
+        "table": "orders_history",
+        "target": "replica"
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-09",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "user-report",
+      "sourceName": "Support ticket queue",
+      "originalContent": "8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.",
+      "normalizedContent": "8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.",
+      "timestamp": "2026-07-15T09:55:00Z",
+      "lineNumber": null,
+      "metadata": {
+        "ticketCount": 8
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-10",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "support-message",
+      "sourceName": "On-call engineer notes",
+      "originalContent": "This same connection-pool-utilization alert has fired sporadically 3-4 times over the past two months, always self-resolving within an hour with no deploy involved. Exact prior dates were not logged anywhere searchable.",
+      "normalizedContent": "This same connection-pool-utilization alert has fired sporadically 3-4 times over the past two months, always self-resolving within an hour with no deploy involved. Exact prior dates were not logged anywhere searchable.",
+      "timestamp": null,
+      "lineNumber": null,
+      "metadata": {
+        "priorOccurrences": "3-4",
+        "timeframe": "past two months"
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    },
+    {
+      "id": "sample-db-connection-leak-ev-11",
+      "incidentId": "sample-db-connection-leak",
+      "sourceType": "other",
+      "sourceName": "Observability gap note",
+      "originalContent": "Per-request connection-hold-time metrics are not currently instrumented for orders-service, so it is not possible to directly confirm from existing dashboards whether individual requests are holding connections for longer than before the deploy.",
+      "normalizedContent": "Per-request connection-hold-time metrics are not currently instrumented for orders-service, so it is not possible to directly confirm from existing dashboards whether individual requests are holding connections for longer than before the deploy.",
+      "timestamp": null,
+      "lineNumber": null,
+      "metadata": {
+        "gap": "connection-hold-time metrics not instrumented"
+      },
+      "createdAt": "2026-07-15T10:12:00Z"
+    }
+  ]
+}
