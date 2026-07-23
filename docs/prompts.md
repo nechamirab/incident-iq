@@ -133,8 +133,8 @@ as built, after redaction (see `docs/architecture.md`, Section 5).
   critique highlighting gaps, not a verdict).
 - **Limitations:** reviews only the *latest* analysis run on an incident; there is no way to request
   a skeptic review of an older run once a newer one exists. See
-  `docs/experiments/skeptic-review/README.md` (via `docs/experiments/README.md`) and Experiment D
-  for how review quality is actually measured against six fixed criteria.
+  `docs/experiments/README.md` (Experiment D) for how review quality is actually measured against
+  six fixed criteria.
 
 ## `postmortem-v1`
 
