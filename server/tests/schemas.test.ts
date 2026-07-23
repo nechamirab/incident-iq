@@ -260,7 +260,11 @@ describe('AnalysisRunSchema', () => {
   });
 
   it('rejects an invalid provider', () => {
-    expect(AnalysisRunSchema.safeParse({ ...valid, provider: 'openai' }).success).toBe(false);
+    expect(AnalysisRunSchema.safeParse({ ...valid, provider: 'azure-openai' }).success).toBe(false);
+  });
+
+  it('accepts "openai" as a valid provider', () => {
+    expect(AnalysisRunSchema.safeParse({ ...valid, provider: 'openai' }).success).toBe(true);
   });
 });
 
@@ -296,7 +300,7 @@ describe('SkepticReviewSchema', () => {
   });
 
   it('rejects an invalid provider', () => {
-    expect(SkepticReviewSchema.safeParse({ ...valid, provider: 'openai' }).success).toBe(false);
+    expect(SkepticReviewSchema.safeParse({ ...valid, provider: 'azure-openai' }).success).toBe(false);
   });
 
   it('rejects an empty challengeSummary', () => {
@@ -387,7 +391,7 @@ describe('PostmortemSchema', () => {
       correctiveActions: [],
       lessonsLearned: [],
       followUpItems: [],
-      provider: 'openai',
+      provider: 'azure-openai',
       model: null,
       promptVersion: null,
       generatedAt: null,

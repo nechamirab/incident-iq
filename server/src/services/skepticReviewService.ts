@@ -49,6 +49,10 @@ async function runSkepticReviewWithRetry(
     promptVersion: result.promptVersionUsed,
     durationMs: result.durationMs,
     rawResponse: { rawText: result.rawText, repaired: result.repaired },
+    configuredProvider: provider.configuredProvider,
+    fallbackUsed: provider.fallbackUsed,
+    fallbackReason: provider.fallbackReason,
+    providerRequestId: provider.providerRequestId,
   });
 }
 

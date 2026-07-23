@@ -26,10 +26,11 @@ export type AICompletionContext =
 
 /**
  * Provider-agnostic contract for anything that can produce an incident
- * analysis or review. `analysisService`/`skepticReviewService` (the only
- * callers) depend solely on this interface, never on a concrete provider,
- * so switching `AI_PROVIDER` never requires changing business logic or the
- * UI.
+ * analysis or review. `analysisService`/`skepticReviewService`/
+ * `postmortemService` (the only callers) depend solely on this interface,
+ * never on a concrete provider, so switching `AI_PROVIDER` never requires
+ * changing business logic or the UI -- and never requires a second,
+ * feature-specific way to pick a provider.
  *
  * `incident` is passed alongside the already-built `prompt` so a mock
  * implementation can generate a deterministic response directly from the
@@ -38,8 +39,34 @@ export type AICompletionContext =
  * the model.
  */
 export interface AIProvider {
+  /** The provider that actually produces `complete()`'s output (never spoofed -- `mock` always means mock, even when serving as a fallback for a misconfigured `anthropic` setup). */
   readonly name: AiProviderName;
   readonly model: string;
+
+  /** What `AI_PROVIDER` was actually set to when this instance was created -- see `createAIProvider`/`resolveProviderSelection`. Differs from `name` only when this instance is a mock fallback. */
+  readonly configuredProvider: AiProviderName;
+  /** Whether this instance exists because the configured provider could not be used and `ALLOW_MOCK_FALLBACK=true` permitted substituting the mock provider instead. */
+  readonly fallbackUsed: boolean;
+  /** Human-readable explanation of why fallback occurred; `null` when `fallbackUsed` is `false`. */
+  readonly fallbackReason: string | null;
+  /**
+   * Whether a real request to this provider has succeeded at least once
+   * during this process's lifetime -- `null` when verification isn't a
+   * meaningful concept for this provider (the mock provider never talks to
+   * an external API, so there is nothing to verify). A configured API key
+   * is not the same claim as a *verified* one; this only becomes `true`
+   * after an actual successful call, never merely because a key is present.
+   */
+  readonly providerVerified: boolean | null;
+  /**
+   * A safe, provider-issued identifier for the most recent completed
+   * request (e.g. OpenAI's `x-request-id`), useful for debugging a specific
+   * call with the provider's own support/logs -- never an auth header or
+   * any other secret. `null` when the provider doesn't expose one (mock;
+   * currently also Anthropic, which this codebase doesn't yet extract a
+   * request id from) or before any request has completed.
+   */
+  readonly providerRequestId: string | null;
 
   /**
    * Requests one completion from the model and returns its raw text

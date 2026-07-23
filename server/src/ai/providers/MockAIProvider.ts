@@ -1,4 +1,4 @@
-import type { AnalysisRun } from '../../../../shared/types/analysisRun.js';
+import type { AiProviderName, AnalysisRun } from '../../../../shared/types/analysisRun.js';
 import type { EvidenceItem, EvidenceSourceType } from '../../../../shared/types/evidence.js';
 import type { Incident } from '../../../../shared/types/incident.js';
 import type { ActionCategory, ActionPriority } from '../../../../shared/types/action.js';
@@ -623,14 +623,36 @@ function buildMockPostmortem(incident: Incident, run: AnalysisRun): AiPostmortem
   };
 }
 
+/** Supplied only when a `MockAIProvider` instance is standing in for a misconfigured `anthropic` setup. */
+export interface MockFallbackInfo {
+  configuredProvider: AiProviderName;
+  reason: string;
+}
+
 /**
  * Deterministic, offline AI provider used when `AI_PROVIDER=mock` (the
  * default). Never makes a network call and never pretends its output came
- * from a real model -- `name`/`model` always identify it as the mock.
+ * from a real model -- `name`/`model` always identify it as the mock, even
+ * when this instance is standing in for `anthropic` as an explicit fallback
+ * (`createAIProvider` is the only caller that ever passes `fallbackInfo`;
+ * nothing here decides to fall back on its own).
  */
 export class MockAIProvider implements AIProvider {
   readonly name = 'mock' as const;
   readonly model = 'mock-deterministic-v1';
+  readonly configuredProvider: AiProviderName;
+  readonly fallbackUsed: boolean;
+  readonly fallbackReason: string | null;
+  /** Verification isn't a meaningful concept for a provider with no external API to reach. */
+  readonly providerVerified = null;
+  /** No external API is ever called, so there is no request id to report. */
+  readonly providerRequestId = null;
+
+  constructor(fallbackInfo?: MockFallbackInfo) {
+    this.configuredProvider = fallbackInfo?.configuredProvider ?? 'mock';
+    this.fallbackUsed = fallbackInfo !== undefined;
+    this.fallbackReason = fallbackInfo?.reason ?? null;
+  }
 
   async complete(incident: Incident, _prompt: AIPrompt, context?: AICompletionContext): Promise<string> {
     if (context?.kind === 'skeptic-review') {

@@ -9,6 +9,11 @@ import type { AICompletionContext, AIPrompt, AIProvider } from '../../src/ai/pro
 export class FakeAIProvider implements AIProvider {
   readonly name = 'mock' as const;
   readonly model = 'fake-test-model';
+  readonly configuredProvider = 'mock' as const;
+  readonly fallbackUsed = false;
+  readonly fallbackReason = null;
+  readonly providerVerified = null;
+  readonly providerRequestId = null;
 
   readonly promptsReceived: AIPrompt[] = [];
   readonly contextsReceived: (AICompletionContext | undefined)[] = [];

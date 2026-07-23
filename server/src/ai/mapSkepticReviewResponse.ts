@@ -14,6 +14,11 @@ export interface MapSkepticReviewResponseParams {
   promptVersion: string;
   durationMs: number;
   rawResponse: unknown;
+  /** What `AI_PROVIDER` was actually configured to; defaults to `providerName` (i.e. "not a fallback") when omitted. */
+  configuredProvider?: AiProviderName;
+  fallbackUsed?: boolean;
+  fallbackReason?: string | null;
+  providerRequestId?: string | null;
 }
 
 /**
@@ -49,7 +54,20 @@ function collectCitedEvidenceIds(run: AnalysisRun): Set<string> {
  * `AiSkepticReviewResponseSchema` for why.
  */
 export function mapAiResponseToSkepticReview(params: MapSkepticReviewResponseParams): SkepticReview {
-  const { incident, run, response, providerName, model, promptVersion, durationMs, rawResponse } = params;
+  const {
+    incident,
+    run,
+    response,
+    providerName,
+    model,
+    promptVersion,
+    durationMs,
+    rawResponse,
+    configuredProvider = providerName,
+    fallbackUsed = false,
+    fallbackReason = null,
+    providerRequestId = null,
+  } = params;
 
   const leading = findLeadingHypothesis(run);
   const citedEvidenceIds = collectCitedEvidenceIds(run);
@@ -66,6 +84,10 @@ export function mapAiResponseToSkepticReview(params: MapSkepticReviewResponsePar
     promptVersion,
     createdAt: new Date().toISOString(),
     durationMs,
+    configuredProvider,
+    fallbackUsed,
+    fallbackReason,
+    providerRequestId,
     challengedHypothesisId: leading.id,
     challengeSummary: response.challengeSummary,
     alternativeExplanations: response.alternativeExplanations,

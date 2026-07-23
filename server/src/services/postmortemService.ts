@@ -66,6 +66,10 @@ export async function generatePostmortem(
     providerName: provider.name,
     model: provider.model,
     promptVersion: result.promptVersionUsed,
+    configuredProvider: provider.configuredProvider,
+    fallbackUsed: provider.fallbackUsed,
+    fallbackReason: provider.fallbackReason,
+    providerRequestId: provider.providerRequestId,
   });
 
   const updated = await repository.setPostmortem(incidentId, postmortem);

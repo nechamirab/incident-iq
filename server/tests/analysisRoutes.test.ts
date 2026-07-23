@@ -5,6 +5,7 @@ import { createApp } from '../src/app.js';
 import { InMemoryIncidentRepository } from '../src/repositories/InMemoryIncidentRepository.js';
 import { sampleIncidents } from '../src/data/incidents/index.js';
 import { AnthropicAIProvider } from '../src/ai/providers/AnthropicAIProvider.js';
+import { OpenAIProvider } from '../src/ai/providers/OpenAIProvider.js';
 import { MockAIProvider } from '../src/ai/providers/MockAIProvider.js';
 import { FakeAIProvider } from './helpers/FakeAIProvider.js';
 import type { AIProvider } from '../src/ai/providers/AIProvider.js';
@@ -64,6 +65,15 @@ describe('POST /api/incidents/:incidentId/analyze', () => {
 
   it('returns a clear, controlled error when AI_PROVIDER=anthropic but no API key is configured', async () => {
     const app = buildApp(new AnthropicAIProvider(undefined, 'claude-sonnet-5'));
+    const response = await request(app).post(`/api/incidents/${sampleIncidents[0].id}/analyze`);
+
+    expect(response.status).toBe(503);
+    expect(body<null>(response).error?.code).toBe('AI_PROVIDER_NOT_CONFIGURED');
+    expect(body<null>(response).error?.message).toMatch(/AI_PROVIDER=mock/);
+  });
+
+  it('returns a clear, controlled error when AI_PROVIDER=openai but no API key is configured', async () => {
+    const app = buildApp(new OpenAIProvider(undefined, 'gpt-5.1'));
     const response = await request(app).post(`/api/incidents/${sampleIncidents[0].id}/analyze`);
 
     expect(response.status).toBe(503);
