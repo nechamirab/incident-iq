@@ -145,6 +145,54 @@ describe('OpenAIProvider', () => {
     expect(provider.providerVerified).toBe(true);
   });
 
+  describe('redaction of the external request payload', () => {
+    it('redacts sensitive content from the prompt before sending it to the SDK', async () => {
+      mockCreate.mockResolvedValueOnce(buildResponse('{"ok":true}'));
+      const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');
+      const sensitivePrompt = {
+        system: prompt.system,
+        user: `${prompt.user}\nSupport note: contact jane.doe@example.com, password=hunter2222`,
+      };
+
+      await provider.complete(incident, sensitivePrompt);
+
+      const sentArgs = mockCreate.mock.calls[0][0] as { input: string };
+      expect(sentArgs.input).not.toContain('jane.doe@example.com');
+      expect(sentArgs.input).not.toContain('hunter2222');
+    });
+
+    it('never mutates the original prompt object passed in', async () => {
+      mockCreate.mockResolvedValueOnce(buildResponse('{"ok":true}'));
+      const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');
+      const sensitivePrompt = { system: prompt.system, user: 'Contact: jane.doe@example.com' };
+
+      await provider.complete(incident, sensitivePrompt);
+
+      expect(sensitivePrompt.user).toBe('Contact: jane.doe@example.com');
+    });
+
+    it('reports redactionApplied and redactionCategories after a request with sensitive content', async () => {
+      mockCreate.mockResolvedValueOnce(buildResponse('{"ok":true}'));
+      const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');
+
+      expect(provider.redactionApplied).toBe(false);
+      await provider.complete(incident, { system: prompt.system, user: 'Contact: jane.doe@example.com' });
+      expect(provider.redactionApplied).toBe(true);
+      expect(provider.redactedValueCount).toBeGreaterThan(0);
+      expect(provider.redactionCategories).toContain('email');
+    });
+
+    it('reports redactionApplied=false for a request with no sensitive content', async () => {
+      mockCreate.mockResolvedValueOnce(buildResponse('{"ok":true}'));
+      const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');
+
+      await provider.complete(incident, prompt);
+      expect(provider.redactionApplied).toBe(false);
+      expect(provider.redactedValueCount).toBe(0);
+      expect(provider.redactionCategories).toEqual([]);
+    });
+  });
+
   it('records the response id as providerRequestId after a successful completion', async () => {
     mockCreate.mockResolvedValueOnce(buildResponse('{"ok":true}', { id: 'resp_abc789' }));
     const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');

@@ -14,6 +14,9 @@ export class FakeAIProvider implements AIProvider {
   readonly fallbackReason = null;
   readonly providerVerified = null;
   readonly providerRequestId = null;
+  readonly redactionApplied = false;
+  readonly redactedValueCount = 0;
+  readonly redactionCategories: readonly string[] = [];
 
   readonly promptsReceived: AIPrompt[] = [];
   readonly contextsReceived: (AICompletionContext | undefined)[] = [];

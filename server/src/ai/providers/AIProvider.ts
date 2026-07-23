@@ -67,6 +67,19 @@ export interface AIProvider {
    * request id from) or before any request has completed.
    */
   readonly providerRequestId: string | null;
+  /**
+   * Whether the most recent request redacted anything from the prompt
+   * before sending it externally (see `redactSensitiveContent.ts`). Always
+   * `false` for the mock provider, which never sends anything externally
+   * and may use the original synthetic evidence as-is -- this field is
+   * itself part of what "clearly distinguishes external vs. local
+   * behavior" between providers.
+   */
+  readonly redactionApplied: boolean;
+  /** How many individual values were redacted from the most recent request's prompt; `0` if none (including for the mock provider, always). */
+  readonly redactedValueCount: number;
+  /** Which redaction categories (e.g. `"email"`, `"api-key"`) were found in the most recent request's prompt; `[]` if none. Never includes the redacted values themselves. */
+  readonly redactionCategories: readonly string[];
 
   /**
    * Requests one completion from the model and returns its raw text

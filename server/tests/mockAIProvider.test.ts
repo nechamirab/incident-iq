@@ -55,6 +55,19 @@ describe('MockAIProvider', () => {
     expect(provider.model.toLowerCase()).toContain('mock');
   });
 
+  it('never redacts -- it may use the original synthetic evidence as-is, since nothing leaves the process', async () => {
+    const incident = sampleIncidents[0];
+    const prompt = buildIncidentAnalysisPrompt(incident);
+    expect(provider.redactionApplied).toBe(false);
+    await provider.complete(incident, {
+      system: prompt.system,
+      user: `${prompt.user}\nContact: jane.doe@example.com`,
+    });
+    expect(provider.redactionApplied).toBe(false);
+    expect(provider.redactedValueCount).toBe(0);
+    expect(provider.redactionCategories).toEqual([]);
+  });
+
   it('is deterministic: the same incident produces the same output', async () => {
     const incident = sampleIncidents[0];
     const prompt = buildIncidentAnalysisPrompt(incident);

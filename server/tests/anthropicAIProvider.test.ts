@@ -135,6 +135,54 @@ describe('AnthropicAIProvider', () => {
     expect(result).toBe('first\nsecond');
   });
 
+  describe('redaction of the external request payload', () => {
+    it('redacts sensitive content from the prompt before sending it to the SDK', async () => {
+      mockCreate.mockResolvedValueOnce({ content: [{ type: 'text', text: '{"ok":true}' }] });
+      const provider = new AnthropicAIProvider(FAKE_SECRET_KEY, 'claude-sonnet-5');
+      const sensitivePrompt = {
+        system: prompt.system,
+        user: `${prompt.user}\nSupport note: contact jane.doe@example.com, password=hunter2222`,
+      };
+
+      await provider.complete(incident, sensitivePrompt);
+
+      const sentArgs = mockCreate.mock.calls[0][0] as { messages: Array<{ content: string }> };
+      expect(sentArgs.messages[0].content).not.toContain('jane.doe@example.com');
+      expect(sentArgs.messages[0].content).not.toContain('hunter2222');
+    });
+
+    it('never mutates the original prompt object passed in', async () => {
+      mockCreate.mockResolvedValueOnce({ content: [{ type: 'text', text: '{"ok":true}' }] });
+      const provider = new AnthropicAIProvider(FAKE_SECRET_KEY, 'claude-sonnet-5');
+      const sensitivePrompt = { system: prompt.system, user: 'Contact: jane.doe@example.com' };
+
+      await provider.complete(incident, sensitivePrompt);
+
+      expect(sensitivePrompt.user).toBe('Contact: jane.doe@example.com');
+    });
+
+    it('reports redactionApplied and redactionCategories after a request with sensitive content', async () => {
+      mockCreate.mockResolvedValueOnce({ content: [{ type: 'text', text: '{"ok":true}' }] });
+      const provider = new AnthropicAIProvider(FAKE_SECRET_KEY, 'claude-sonnet-5');
+
+      expect(provider.redactionApplied).toBe(false);
+      await provider.complete(incident, { system: prompt.system, user: 'Contact: jane.doe@example.com' });
+      expect(provider.redactionApplied).toBe(true);
+      expect(provider.redactedValueCount).toBeGreaterThan(0);
+      expect(provider.redactionCategories).toContain('email');
+    });
+
+    it('reports redactionApplied=false for a request with no sensitive content', async () => {
+      mockCreate.mockResolvedValueOnce({ content: [{ type: 'text', text: '{"ok":true}' }] });
+      const provider = new AnthropicAIProvider(FAKE_SECRET_KEY, 'claude-sonnet-5');
+
+      await provider.complete(incident, prompt);
+      expect(provider.redactionApplied).toBe(false);
+      expect(provider.redactedValueCount).toBe(0);
+      expect(provider.redactionCategories).toEqual([]);
+    });
+  });
+
   it('maps an authentication failure to a controlled 401 AI_PROVIDER_AUTH_FAILED error', async () => {
     mockCreate.mockRejectedValueOnce(buildAuthError());
     const provider = new AnthropicAIProvider(FAKE_SECRET_KEY, 'claude-sonnet-5');

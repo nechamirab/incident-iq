@@ -7,6 +7,7 @@ import Anthropic, {
 } from '@anthropic-ai/sdk';
 import type { AiProviderName } from '../../../../shared/types/analysisRun.js';
 import type { Incident } from '../../../../shared/types/incident.js';
+import { redactPromptForExternalProvider } from '../redactSensitiveContent.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { AICompletionContext, AIPrompt, AIProvider } from './AIProvider.js';
 
@@ -59,6 +60,9 @@ export class AnthropicAIProvider implements AIProvider {
 
   private readonly client: Anthropic | null;
   private verified = false;
+  private lastRedactionApplied = false;
+  private lastRedactedValueCount = 0;
+  private lastRedactionCategories: readonly string[] = [];
 
   constructor(apiKey: string | undefined, model: string) {
     this.model = model;
@@ -69,6 +73,18 @@ export class AnthropicAIProvider implements AIProvider {
 
   get providerVerified(): boolean {
     return this.verified;
+  }
+
+  get redactionApplied(): boolean {
+    return this.lastRedactionApplied;
+  }
+
+  get redactedValueCount(): number {
+    return this.lastRedactedValueCount;
+  }
+
+  get redactionCategories(): readonly string[] {
+    return this.lastRedactionCategories;
   }
 
   async complete(_incident: Incident, prompt: AIPrompt, _context?: AICompletionContext): Promise<string> {
@@ -82,13 +98,22 @@ export class AnthropicAIProvider implements AIProvider {
       );
     }
 
+    // Redact only the payload actually sent externally -- `prompt` (and the
+    // incident/evidence it was built from) is never mutated, so local
+    // storage and every other consumer of `prompt` still see the original,
+    // unredacted text.
+    const redaction = redactPromptForExternalProvider(prompt);
+    this.lastRedactionApplied = redaction.redactionApplied;
+    this.lastRedactedValueCount = redaction.redactedValueCount;
+    this.lastRedactionCategories = redaction.redactionCategories;
+
     let response: Anthropic.Message;
     try {
       response = await this.client.messages.create({
         model: this.model,
         max_tokens: MAX_OUTPUT_TOKENS,
-        system: prompt.system,
-        messages: [{ role: 'user', content: prompt.user }],
+        system: redaction.redactedPrompt.system,
+        messages: [{ role: 'user', content: redaction.redactedPrompt.user }],
       });
     } catch (cause) {
       throw this.toControlledError(cause);

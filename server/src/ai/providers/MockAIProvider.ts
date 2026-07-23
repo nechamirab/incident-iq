@@ -647,6 +647,10 @@ export class MockAIProvider implements AIProvider {
   readonly providerVerified = null;
   /** No external API is ever called, so there is no request id to report. */
   readonly providerRequestId = null;
+  /** Nothing is ever sent externally, so redaction never applies -- the mock provider may use the original synthetic evidence as-is. */
+  readonly redactionApplied = false;
+  readonly redactedValueCount = 0;
+  readonly redactionCategories: readonly string[] = [];
 
   constructor(fallbackInfo?: MockFallbackInfo) {
     this.configuredProvider = fallbackInfo?.configuredProvider ?? 'mock';
