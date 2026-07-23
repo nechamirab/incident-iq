@@ -208,5 +208,39 @@ export const mobileLoginFailureIncident: Incident = {
       metadata: { errorRateOldClientsPct: 14, errorRateNewClientsPct: 0.2 },
       createdAt: DETECTED_AT,
     },
+    {
+      id: `${INCIDENT_ID}-ev-12`,
+      incidentId: INCIDENT_ID,
+      sourceType: 'support-message',
+      sourceName: 'On-call engineer notes',
+      originalContent:
+        'Similar login-failure spikes have happened during past key-rotation windows, but exact ' +
+        'prior dates and whether they were ever root-caused are not tracked anywhere searchable.',
+      normalizedContent:
+        'Similar login-failure spikes have happened during past key-rotation windows, but exact ' +
+        'prior dates and whether they were ever root-caused are not tracked anywhere searchable.',
+      timestamp: null,
+      lineNumber: null,
+      metadata: { priorOccurrences: 'unknown count', timeframe: 'past key-rotation windows' },
+      createdAt: DETECTED_AT,
+    },
+    {
+      id: `${INCIDENT_ID}-ev-13`,
+      incidentId: INCIDENT_ID,
+      sourceType: 'other',
+      sourceName: 'Observability gap note',
+      originalContent:
+        'Per-device cache-eviction metrics are not instrumented for the signing-key cache, so it ' +
+        'is not possible to directly confirm whether cache eviction (rather than the stale ' +
+        'token-refresh logic in older app versions) is the dominant cause of the 401 spike.',
+      normalizedContent:
+        'Per-device cache-eviction metrics are not instrumented for the signing-key cache, so it ' +
+        'is not possible to directly confirm whether cache eviction (rather than the stale ' +
+        'token-refresh logic in older app versions) is the dominant cause of the 401 spike.',
+      timestamp: null,
+      lineNumber: null,
+      metadata: { gap: 'per-device cache-eviction metrics not instrumented' },
+      createdAt: DETECTED_AT,
+    },
   ],
 };

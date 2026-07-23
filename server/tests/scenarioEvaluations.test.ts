@@ -3,16 +3,25 @@ import {
   databaseConnectionLeakIncident,
   paymentGatewayTimeoutIncident,
   asyncQueueBacklogIncident,
+  ecommerceCheckoutIncident,
+  courseRegistrationSlowdownIncident,
+  mobileLoginFailureIncident,
 } from '../src/data/incidents/index.js';
 import { scenarioEvaluations } from './fixtures/scenarioEvaluations/index.js';
 import type { ScenarioEvaluationFixture } from './fixtures/scenarioEvaluations/types.js';
 import type { Incident } from '../../shared/types/incident.js';
 
+const allEvaluatedIncidents = [
+  databaseConnectionLeakIncident,
+  paymentGatewayTimeoutIncident,
+  asyncQueueBacklogIncident,
+  ecommerceCheckoutIncident,
+  courseRegistrationSlowdownIncident,
+  mobileLoginFailureIncident,
+];
+
 const incidentsById = new Map<string, Incident>(
-  [databaseConnectionLeakIncident, paymentGatewayTimeoutIncident, asyncQueueBacklogIncident].map((incident) => [
-    incident.id,
-    incident,
-  ]),
+  allEvaluatedIncidents.map((incident) => [incident.id, incident]),
 );
 
 function incidentFor(fixture: ScenarioEvaluationFixture): Incident {
@@ -24,10 +33,10 @@ function incidentFor(fixture: ScenarioEvaluationFixture): Incident {
 }
 
 describe('scenario evaluation fixtures', () => {
-  it('ships an evaluation fixture for each of the three new scenarios', () => {
-    expect(scenarioEvaluations).toHaveLength(3);
+  it('ships an evaluation fixture for each of the six bundled sample scenarios', () => {
+    expect(scenarioEvaluations).toHaveLength(6);
     expect(new Set(scenarioEvaluations.map((fixture) => fixture.incidentId))).toEqual(
-      new Set([databaseConnectionLeakIncident.id, paymentGatewayTimeoutIncident.id, asyncQueueBacklogIncident.id]),
+      new Set(allEvaluatedIncidents.map((incident) => incident.id)),
     );
   });
 

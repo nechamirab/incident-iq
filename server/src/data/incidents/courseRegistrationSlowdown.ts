@@ -196,5 +196,39 @@ export const courseRegistrationSlowdownIncident: Incident = {
       metadata: { metric: 'cache_hit_ratio_pct', value: 40, baseline: 92 },
       createdAt: DETECTED_AT,
     },
+    {
+      id: `${INCIDENT_ID}-ev-12`,
+      incidentId: INCIDENT_ID,
+      sourceType: 'support-message',
+      sourceName: 'On-call engineer notes',
+      originalContent:
+        'Registration openings have caused brief slowdowns in past semesters too, but exact prior ' +
+        'dates and whether the cause was ever confirmed are not tracked anywhere searchable.',
+      normalizedContent:
+        'Registration openings have caused brief slowdowns in past semesters too, but exact prior ' +
+        'dates and whether the cause was ever confirmed are not tracked anywhere searchable.',
+      timestamp: null,
+      lineNumber: null,
+      metadata: { priorOccurrences: 'past semesters', timeframe: 'registration openings' },
+      createdAt: DETECTED_AT,
+    },
+    {
+      id: `${INCIDENT_ID}-ev-13`,
+      incidentId: INCIDENT_ID,
+      sourceType: 'other',
+      sourceName: 'Observability gap note',
+      originalContent:
+        'Per-query execution-plan history is not retained past 24 hours, so it is not possible to ' +
+        'directly confirm whether the slow query pattern seen today differs from its normal ' +
+        'execution plan or is simply the same plan under higher load.',
+      normalizedContent:
+        'Per-query execution-plan history is not retained past 24 hours, so it is not possible to ' +
+        'directly confirm whether the slow query pattern seen today differs from its normal ' +
+        'execution plan or is simply the same plan under higher load.',
+      timestamp: null,
+      lineNumber: null,
+      metadata: { gap: 'query execution-plan history retained only 24 hours' },
+      createdAt: DETECTED_AT,
+    },
   ],
 };

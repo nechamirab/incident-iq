@@ -219,5 +219,41 @@ export const ecommerceCheckoutIncident: Incident = {
       metadata: { metric: 'pod_count', from: 10, to: 14 },
       createdAt: DETECTED_AT,
     },
+    {
+      id: `${INCIDENT_ID}-ev-13`,
+      incidentId: INCIDENT_ID,
+      sourceType: 'support-message',
+      sourceName: 'On-call engineer notes',
+      originalContent:
+        'This same connection-timeout error signature has appeared briefly a few times over the ' +
+        'past month, always self-resolving within minutes with no deploy involved. Exact prior ' +
+        'dates were not logged anywhere searchable.',
+      normalizedContent:
+        'This same connection-timeout error signature has appeared briefly a few times over the ' +
+        'past month, always self-resolving within minutes with no deploy involved. Exact prior ' +
+        'dates were not logged anywhere searchable.',
+      timestamp: null,
+      lineNumber: null,
+      metadata: { priorOccurrences: 'a few', timeframe: 'past month' },
+      createdAt: DETECTED_AT,
+    },
+    {
+      id: `${INCIDENT_ID}-ev-14`,
+      incidentId: INCIDENT_ID,
+      sourceType: 'other',
+      sourceName: 'Observability gap note',
+      originalContent:
+        'Per-request database-connection-hold-time metrics are not currently instrumented for ' +
+        'checkout-api, so it is not possible to directly confirm from existing dashboards whether ' +
+        'individual requests are holding connections for longer than before the deploy.',
+      normalizedContent:
+        'Per-request database-connection-hold-time metrics are not currently instrumented for ' +
+        'checkout-api, so it is not possible to directly confirm from existing dashboards whether ' +
+        'individual requests are holding connections for longer than before the deploy.',
+      timestamp: null,
+      lineNumber: null,
+      metadata: { gap: 'connection-hold-time metrics not instrumented' },
+      createdAt: DETECTED_AT,
+    },
   ],
 };
