@@ -34,6 +34,9 @@ export const ScenarioTypeSchema = z.enum([
   'ecommerce-checkout',
   'course-registration-slowdown',
   'mobile-login-failure',
+  'database-connection-leak',
+  'payment-gateway-timeout',
+  'async-queue-backlog',
   'custom',
 ]);
 

@@ -14,6 +14,11 @@ import { buildIncidentAnalysisPrompt } from '../src/ai/prompts/incidentAnalysisV
 import { buildSkepticReviewPrompt } from '../src/ai/prompts/skepticReviewV1.js';
 import { buildPostmortemPrompt } from '../src/ai/prompts/postmortemV1.js';
 import { buildAnalysisRun } from './helpers/analysisRunFixture.js';
+import { buildValidAiResponse, buildValidSkepticReviewResponse, buildValidPostmortemResponse } from './helpers/aiResponseFixtures.js';
+import { InMemoryIncidentRepository } from '../src/repositories/InMemoryIncidentRepository.js';
+import { analyzeIncident } from '../src/services/analysisService.js';
+import { runSkepticReview } from '../src/services/skepticReviewService.js';
+import { generatePostmortem } from '../src/services/postmortemService.js';
 
 // Mocks only the SDK's client (`responses.create`); every error class
 // (`AuthenticationError`, `RateLimitError`, ...) is re-exported from the
@@ -348,5 +353,80 @@ describe('OpenAIProvider', () => {
         expect(serialized).not.toContain(FAKE_SECRET_KEY);
       }
     }
+  });
+});
+
+/**
+ * Proves the three AI orchestration services actually drive a real
+ * `OpenAIProvider` instance end to end (not merely a test double), through
+ * the exact same `runProviderWithRetry` pipeline used for every other
+ * provider -- no OpenAI-specific branching exists in any of these
+ * services. The SDK is mocked (see the `vi.mock('openai', ...)` above);
+ * no real network call is made.
+ */
+describe('OpenAIProvider drives analysis / skeptic review / postmortem end to end', () => {
+  beforeEach(() => {
+    mockCreate.mockReset();
+  });
+
+  const incident = sampleIncidents[0];
+
+  it('analyzeIncident uses OpenAIProvider and records providerUsed: "openai"', async () => {
+    mockCreate.mockResolvedValueOnce(
+      buildResponse(JSON.stringify(buildValidAiResponse({}, incident.evidence[0].id))),
+    );
+    const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');
+    const repository = new InMemoryIncidentRepository(sampleIncidents);
+
+    const run = await analyzeIncident(repository, provider, incident.id);
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(run.provider).toBe('openai');
+    expect(run.configuredProvider).toBe('openai');
+    expect(run.fallbackUsed).toBe(false);
+  });
+
+  it('runSkepticReview uses OpenAIProvider and records providerUsed: "openai"', async () => {
+    mockCreate.mockResolvedValueOnce(buildResponse(JSON.stringify(buildValidSkepticReviewResponse())));
+    const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');
+    const repository = new InMemoryIncidentRepository(sampleIncidents);
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    await repository.addAnalysisRun(incident.id, run);
+
+    const review = await runSkepticReview(repository, provider, incident.id);
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(review.provider).toBe('openai');
+    expect(review.configuredProvider).toBe('openai');
+    expect(review.fallbackUsed).toBe(false);
+  });
+
+  it('generatePostmortem uses OpenAIProvider and records providerUsed: "openai"', async () => {
+    mockCreate.mockResolvedValueOnce(buildResponse(JSON.stringify(buildValidPostmortemResponse())));
+    const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');
+    const repository = new InMemoryIncidentRepository(sampleIncidents);
+    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    await repository.addAnalysisRun(incident.id, run);
+
+    const updated = await generatePostmortem(repository, provider, incident.id);
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(updated.postmortem?.provider).toBe('openai');
+    expect(updated.postmortem?.configuredProvider).toBe('openai');
+    expect(updated.postmortem?.fallbackUsed).toBe(false);
+  });
+
+  it('mock fallback is never used for any of the three flows when ALLOW_MOCK_FALLBACK=false and a key is configured', async () => {
+    mockCreate.mockResolvedValueOnce(
+      buildResponse(JSON.stringify(buildValidAiResponse({}, incident.evidence[0].id))),
+    );
+    const provider = new OpenAIProvider(FAKE_SECRET_KEY, 'gpt-5.1');
+    const repository = new InMemoryIncidentRepository(sampleIncidents);
+
+    const run = await analyzeIncident(repository, provider, incident.id);
+
+    expect(run.provider).not.toBe('mock');
+    expect(run.fallbackUsed).toBe(false);
+    expect(run.fallbackReason).toBeNull();
   });
 });

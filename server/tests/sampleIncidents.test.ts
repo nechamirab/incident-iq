@@ -2,14 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { sampleIncidents } from '../src/data/incidents/index.js';
 
 describe('sample incident datasets', () => {
-  it('ships exactly three sample incidents', () => {
-    expect(sampleIncidents).toHaveLength(3);
+  it('ships exactly six sample incidents', () => {
+    expect(sampleIncidents).toHaveLength(6);
   });
 
-  it('covers the three required scenario types', () => {
+  it('covers the six required scenario types', () => {
     const scenarioTypes = sampleIncidents.map((incident) => incident.scenarioType).sort();
     expect(scenarioTypes).toEqual(
-      ['course-registration-slowdown', 'ecommerce-checkout', 'mobile-login-failure'].sort(),
+      [
+        'async-queue-backlog',
+        'course-registration-slowdown',
+        'database-connection-leak',
+        'ecommerce-checkout',
+        'mobile-login-failure',
+        'payment-gateway-timeout',
+      ].sort(),
     );
   });
 
