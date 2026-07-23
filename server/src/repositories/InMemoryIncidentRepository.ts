@@ -1,5 +1,6 @@
 import type { AnalysisRun } from '../../../shared/types/analysisRun.js';
 import type { EvidenceItem } from '../../../shared/types/evidence.js';
+import type { HypothesisStatus } from '../../../shared/types/hypothesis.js';
 import type {
   CreateIncidentInput,
   Incident,
@@ -205,6 +206,50 @@ export class InMemoryIncidentRepository implements IncidentRepository {
         assumptions: run.assumptions.map(updateStatement),
       };
     });
+
+    if (!found) {
+      return null;
+    }
+
+    const updated: Incident = {
+      ...existing,
+      analysisRuns,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.incidentsById.set(incidentId, updated);
+    return structuredClone(updated);
+  }
+
+  async updateHypothesisStatus(
+    incidentId: string,
+    hypothesisId: string,
+    newStatus: HypothesisStatus,
+    humanReviewNote: string | null,
+  ): Promise<Incident | null> {
+    const existing = this.incidentsById.get(incidentId);
+    if (!existing) {
+      return null;
+    }
+
+    let found = false;
+    const reviewedAt = new Date().toISOString();
+    const analysisRuns: AnalysisRun[] = existing.analysisRuns.map((run) => ({
+      ...run,
+      hypotheses: run.hypotheses.map((hypothesis) => {
+        if (hypothesis.id !== hypothesisId) {
+          return hypothesis;
+        }
+        found = true;
+        return {
+          ...hypothesis,
+          previousStatus: hypothesis.status,
+          status: newStatus,
+          reviewedAt,
+          humanReviewNote,
+        };
+      }),
+    }));
 
     if (!found) {
       return null;

@@ -4,8 +4,10 @@ import type { Hypothesis } from '../../../shared/types/hypothesis';
 import { getHypothesisStatusDisplay } from '../../utils/statusDisplay';
 import { ConfidenceIndicator } from './ConfidenceIndicator';
 import { EvidenceReferenceChips } from './EvidenceReferenceChips';
+import { HypothesisStatusControls } from './HypothesisStatusControls';
 
 interface HypothesisCardProps {
+  incidentId: string;
   hypothesis: Hypothesis;
 }
 
@@ -13,10 +15,13 @@ interface HypothesisCardProps {
  * One candidate explanation: title, description, confidence (with its
  * reasoning), supporting and contradicting evidence shown as clearly
  * separate groups, assumptions, the recommended test and its expected
- * result, and current status. The AI can only ever leave a hypothesis
- * `proposed`; only a human review action can mark one `confirmed-by-human`.
+ * result, current status, and human-review controls
+ * ({@link HypothesisStatusControls}). The AI can only ever leave a
+ * hypothesis `proposed`; only an explicit human review action -- via
+ * `PATCH /api/incidents/:incidentId/hypotheses/:hypothesisId/status` --
+ * can mark one `confirmed-by-human`.
  */
-export function HypothesisCard({ hypothesis }: HypothesisCardProps): ReactNode {
+export function HypothesisCard({ incidentId, hypothesis }: HypothesisCardProps): ReactNode {
   const statusDisplay = getHypothesisStatusDisplay(hypothesis.status);
 
   return (
@@ -83,6 +88,10 @@ export function HypothesisCard({ hypothesis }: HypothesisCardProps): ReactNode {
             <Typography variant="subtitle2">Expected result</Typography>
             <Typography variant="body2">{hypothesis.expectedResult}</Typography>
           </Stack>
+
+          <Divider />
+
+          <HypothesisStatusControls incidentId={incidentId} hypothesis={hypothesis} />
         </Stack>
       </CardContent>
     </Card>

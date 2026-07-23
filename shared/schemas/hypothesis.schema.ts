@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ConfidenceScoreSchema, IdSchema } from './common.schema.js';
+import { ConfidenceScoreSchema, IdSchema, IsoDateTimeSchema } from './common.schema.js';
 
 /**
  * Lifecycle of a root-cause hypothesis. The AI itself must never set a
@@ -28,4 +28,10 @@ export const HypothesisSchema = z.object({
   recommendedTest: z.string(),
   expectedResult: z.string(),
   status: HypothesisStatusSchema,
+  /** When a human last changed `status` via `PATCH .../hypotheses/:id/status`; `null`/absent while still at the AI-assigned `proposed` status. */
+  reviewedAt: IsoDateTimeSchema.nullable().optional(),
+  /** Optional free-text note a human reviewer recorded when changing `status`; `null`/absent if none was given. */
+  humanReviewNote: z.string().nullable().optional(),
+  /** `status` immediately before the most recent human review action; `null`/absent before any review has happened. */
+  previousStatus: HypothesisStatusSchema.nullable().optional(),
 });

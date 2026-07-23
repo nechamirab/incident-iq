@@ -1,8 +1,18 @@
 import type { AnalysisRun } from '../../shared/types/analysisRun';
+import type { HypothesisStatus } from '../../shared/types/hypothesis';
 import type { Incident } from '../../shared/types/incident';
 import type { ReviewStatus } from '../../shared/types/reasoning';
 import type { SkepticReview } from '../../shared/types/skepticReview';
 import { apiRequest } from './apiClient';
+
+/** Request payload for {@link updateHypothesisStatus}. */
+export interface UpdateHypothesisStatusPayload {
+  status: HypothesisStatus;
+  /** Optional free-text note explaining the reviewer's judgment. */
+  humanReviewNote?: string;
+  /** Required (and must be `true`) when `status` is `"confirmed-by-human"` -- the backend rejects the request otherwise. */
+  confirmed?: boolean;
+}
 
 /**
  * Triggers one AI analysis pass over an incident's evidence.
@@ -30,6 +40,28 @@ export async function reviewStatement(
   return apiRequest<Incident>(`/api/incidents/${incidentId}/statements/${statementId}/review`, {
     method: 'PATCH',
     body: JSON.stringify({ reviewStatus }),
+  });
+}
+
+/**
+ * Records a human reviewer's judgment on a hypothesis -- the only path
+ * that can ever move a hypothesis to `confirmed-by-human`; the AI itself
+ * can never set that status, and the backend rejects this call unless
+ * `confirmed: true` is explicitly included alongside it.
+ *
+ * @param incidentId The incident the hypothesis belongs to.
+ * @param hypothesisId The hypothesis's id.
+ * @param payload The new status, and an optional review note.
+ * @returns The updated incident.
+ */
+export async function updateHypothesisStatus(
+  incidentId: string,
+  hypothesisId: string,
+  payload: UpdateHypothesisStatusPayload,
+): Promise<Incident> {
+  return apiRequest<Incident>(`/api/incidents/${incidentId}/hypotheses/${hypothesisId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
   });
 }
 

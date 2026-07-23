@@ -40,7 +40,7 @@ export function HypothesesSection({ incident }: HypothesesSectionProps): ReactNo
   return (
     <Stack spacing={2}>
       {hypotheses.map((hypothesis) => (
-        <HypothesisCard key={hypothesis.id} hypothesis={hypothesis} />
+        <HypothesisCard key={hypothesis.id} incidentId={incident.id} hypothesis={hypothesis} />
       ))}
     </Stack>
   );

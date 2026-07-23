@@ -9,6 +9,7 @@ import {
   listSampleIncidents,
 } from '../controllers/incidentController.js';
 import { addEvidenceItem } from '../controllers/evidenceController.js';
+import { updateHypothesisStatusHandler } from '../controllers/hypothesisController.js';
 import { updateIncidentStatusHandler } from '../controllers/incidentStatusController.js';
 import { editPostmortemHandler, generatePostmortemHandler } from '../controllers/postmortemController.js';
 import { triggerSkepticReview, updateSkepticReviewNotes } from '../controllers/skepticReviewController.js';
@@ -17,6 +18,7 @@ import { incidentEvidenceUpload } from '../middleware/upload.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import type { IncidentRepository } from '../repositories/IncidentRepository.js';
 import { EvidenceCreateRequestSchema } from '../schemas/evidenceCreate.schema.js';
+import { HypothesisStatusUpdateRequestSchema } from '../schemas/hypothesisStatusUpdate.schema.js';
 import { IncidentIntakeRequestSchema } from '../schemas/incidentIntake.schema.js';
 import { IncidentStatusUpdateRequestSchema } from '../schemas/incidentStatusUpdate.schema.js';
 import { PostmortemEditRequestSchema } from '../schemas/postmortemEdit.schema.js';
@@ -58,6 +60,11 @@ export function createIncidentRouter(repository: IncidentRepository, aiProvider:
     '/:incidentId/statements/:statementId/review',
     validateBody(StatementReviewRequestSchema),
     reviewStatement(repository),
+  );
+  router.patch(
+    '/:incidentId/hypotheses/:hypothesisId/status',
+    validateBody(HypothesisStatusUpdateRequestSchema),
+    updateHypothesisStatusHandler(repository),
   );
   router.patch(
     '/:incidentId/skeptic-reviews/:reviewId/notes',

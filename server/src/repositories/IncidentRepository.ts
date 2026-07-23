@@ -1,5 +1,6 @@
 import type { AnalysisRun } from '../../../shared/types/analysisRun.js';
 import type { EvidenceItem } from '../../../shared/types/evidence.js';
+import type { HypothesisStatus } from '../../../shared/types/hypothesis.js';
 import type {
   CreateIncidentInput,
   Incident,
@@ -60,5 +61,23 @@ export interface IncidentRepository {
     incidentId: string,
     statementId: string,
     reviewStatus: ReviewStatus,
+  ): Promise<Incident | null>;
+
+  /**
+   * Updates a hypothesis's lifecycle status as an explicit human review
+   * action (searching every analysis run on the incident, since a
+   * hypothesis always belongs to exactly one run). Records `previousStatus`
+   * and `reviewedAt` alongside the new `status`, and `humanReviewNote` when
+   * supplied. The AI itself never calls this -- it is only ever invoked
+   * from `PATCH /api/incidents/:incidentId/hypotheses/:hypothesisId/status`.
+   *
+   * @returns The updated incident, or `null` if the incident or the
+   * hypothesis (within it) could not be found.
+   */
+  updateHypothesisStatus(
+    incidentId: string,
+    hypothesisId: string,
+    newStatus: HypothesisStatus,
+    humanReviewNote: string | null,
   ): Promise<Incident | null>;
 }

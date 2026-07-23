@@ -6,6 +6,7 @@ import type { AnalysisRun } from '../../shared/types/analysisRun.js';
 import type { EvidenceItem } from '../../shared/types/evidence.js';
 import type { Postmortem } from '../../shared/types/postmortem.js';
 import type { SkepticReview } from '../../shared/types/skepticReview.js';
+import { buildAnalysisRun } from './helpers/analysisRunFixture.js';
 
 function buildCreateInput(overrides: Partial<CreateIncidentInput> = {}): CreateIncidentInput {
   return {
@@ -423,6 +424,80 @@ describe('InMemoryIncidentRepository', () => {
         vi.advanceTimersByTime(1000);
         const updated = await repository.updateStatementReviewStatus(created.id, 'fact-1', 'supported');
         expect(updated?.updatedAt).not.toBe(created.updatedAt);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('updateHypothesisStatus', () => {
+    it('updates the status, recording previousStatus, reviewedAt, and the note', async () => {
+      const incident = sampleIncidents[0];
+      const run = buildAnalysisRun(incident, incident.evidence[0].id);
+      await repository.addAnalysisRun(incident.id, run);
+      const hypothesisId = run.hypotheses[0].id;
+
+      const updated = await repository.updateHypothesisStatus(
+        incident.id,
+        hypothesisId,
+        'confirmed-by-human',
+        'Confirmed via server logs.',
+      );
+
+      const hypothesis = updated?.analysisRuns[0]?.hypotheses.find((h) => h.id === hypothesisId);
+      expect(hypothesis?.status).toBe('confirmed-by-human');
+      expect(hypothesis?.previousStatus).toBe('proposed');
+      expect(hypothesis?.humanReviewNote).toBe('Confirmed via server logs.');
+      expect(Number.isNaN(Date.parse(hypothesis?.reviewedAt ?? ''))).toBe(false);
+    });
+
+    it('allows a null review note', async () => {
+      const incident = sampleIncidents[0];
+      const run = buildAnalysisRun(incident, incident.evidence[0].id);
+      await repository.addAnalysisRun(incident.id, run);
+      const hypothesisId = run.hypotheses[0].id;
+
+      const updated = await repository.updateHypothesisStatus(incident.id, hypothesisId, 'testing', null);
+      const hypothesis = updated?.analysisRuns[0]?.hypotheses.find((h) => h.id === hypothesisId);
+      expect(hypothesis?.humanReviewNote).toBeNull();
+    });
+
+    it('does not affect any other hypothesis on the same run', async () => {
+      const incident = sampleIncidents[0];
+      const run = buildAnalysisRun(incident, incident.evidence[0].id);
+      await repository.addAnalysisRun(incident.id, run);
+      const [targetId, untouchedId] = run.hypotheses.map((h) => h.id);
+
+      const updated = await repository.updateHypothesisStatus(incident.id, targetId, 'rejected', null);
+      const untouched = updated?.analysisRuns[0]?.hypotheses.find((h) => h.id === untouchedId);
+      expect(untouched?.status).toBe('proposed');
+      expect(untouched?.reviewedAt).toBeFalsy();
+    });
+
+    it('returns null for a missing incident', async () => {
+      const updated = await repository.updateHypothesisStatus('does-not-exist', 'hyp-1', 'testing', null);
+      expect(updated).toBeNull();
+    });
+
+    it('returns null for a missing hypothesis id', async () => {
+      const incident = sampleIncidents[0];
+      const run = buildAnalysisRun(incident, incident.evidence[0].id);
+      await repository.addAnalysisRun(incident.id, run);
+
+      const updated = await repository.updateHypothesisStatus(incident.id, 'does-not-exist', 'testing', null);
+      expect(updated).toBeNull();
+    });
+
+    it('bumps updatedAt on success', async () => {
+      const incident = sampleIncidents[0];
+      const run = buildAnalysisRun(incident, incident.evidence[0].id);
+      const created = await repository.addAnalysisRun(incident.id, run);
+
+      vi.useFakeTimers();
+      try {
+        vi.advanceTimersByTime(1000);
+        const updated = await repository.updateHypothesisStatus(incident.id, run.hypotheses[0].id, 'testing', null);
+        expect(updated?.updatedAt).not.toBe(created?.updatedAt);
       } finally {
         vi.useRealTimers();
       }
