@@ -1,0 +1,951 @@
+{
+  "incidentId": "sample-db-connection-leak",
+  "mockPipelineCheck": {
+    "incidentId": "sample-db-connection-leak",
+    "standard": {
+      "incidentId": "sample-db-connection-leak",
+      "run": {
+        "id": "run-6d3f2a8e-8261-4b7c-b91a-6baec671b82a",
+        "incidentId": "sample-db-connection-leak",
+        "provider": "mock",
+        "model": "mock-deterministic-v1",
+        "promptVersion": "incident-analysis-v2",
+        "createdAt": "2026-07-23T12:36:46.296Z",
+        "inputHash": "22e17216f7716388a6f629605885ed86f5d0693f0d89b3924d296f4e28c0f4d7",
+        "durationMs": 1,
+        "configuredProvider": "mock",
+        "fallbackUsed": false,
+        "fallbackReason": null,
+        "providerRequestId": null,
+        "completionRepairAttempted": false,
+        "completionRepairedSections": [],
+        "qualityWarnings": [
+          "Quality: Every hypothesis has an empty contradicting-evidence list, despite 11 evidence items being available -- this may indicate confirmation bias in the analysis itself, or that contradicting evidence genuinely was not actively sought."
+        ],
+        "status": "completed",
+        "summary": {
+          "text": "Deterministic mock analysis of \"Order service failing with database connection-pool exhaustion\" based on 11 evidence item(s) affecting orders-service.",
+          "affectedComponents": [
+            "orders-service"
+          ],
+          "impact": "Severity was classified as high. Actual user/business impact should be confirmed against the evidence."
+        },
+        "timeline": [
+          {
+            "id": "timeline-cb0acb41-7859-48dd-b864-8e735c801031",
+            "timestamp": "2026-07-15T09:30:00Z",
+            "title": "Marketing analytics dashboard",
+            "description": "orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-04"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-a392ac70-51eb-49e9-b853-0816133d2f87",
+            "timestamp": "2026-07-15T09:35:00Z",
+            "title": "deploy-log-orders-service",
+            "description": "orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-02"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-9af6e870-8068-4552-b726-1e5ba5d7baad",
+            "timestamp": "2026-07-15T09:41:00Z",
+            "title": "Datadog",
+            "description": "Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-08"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-e0d095d8-b455-4ef5-82de-b43928e9f624",
+            "timestamp": "2026-07-15T09:45:00Z",
+            "title": "orders-service.log",
+            "description": "INFO: \"session closed\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \"session opened\" frequency stayed roughly constant.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-07"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-8054cee8-1aac-4861-aebf-d2ea0c29e0d3",
+            "timestamp": "2026-07-15T09:50:00Z",
+            "title": "orders-api-error.log",
+            "description": "POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-05"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-f7671e90-e31e-486e-a6d1-e984a58b066d",
+            "timestamp": "2026-07-15T09:52:00Z",
+            "title": "postgres-orders-primary.log",
+            "description": "FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-06"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-22c86ed7-a883-48ad-b090-b20e3d57c0a6",
+            "timestamp": "2026-07-15T09:55:00Z",
+            "title": "Support ticket queue",
+            "description": "8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-09"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-5c99917c-c324-407f-bcec-0d1b1c3aaa3c",
+            "timestamp": "2026-07-15T10:05:00Z",
+            "title": "Datadog",
+            "description": "orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-03"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-6b265031-6964-4b1d-9726-4a18cb189a67",
+            "timestamp": "2026-07-15T10:12:00Z",
+            "title": "Incident report",
+            "description": "orders-service has been intermittently returning 500 errors since roughly 09:40 UTC, with logs pointing to database connection-pool exhaustion. A deploy shipped shortly before reports started; a marketing campaign also drove a traffic increase around the same time.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-01"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          }
+        ],
+        "facts": [
+          {
+            "id": "reasoning-c86cacf3-167a-4259-be91-e5d2cf608633",
+            "category": "fact",
+            "statement": "orders-service.log reported: INFO: \"session closed\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \"session opened\" frequency stayed roughly constant.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-07 (application log).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-07"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-d3a8c398-2f77-4dc4-8c3d-d3372bb17f28",
+            "category": "fact",
+            "statement": "Datadog reported: orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-03 (monitoring alert).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-03"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-21699a12-6623-4a0b-8a4e-528b162a44a0",
+            "category": "fact",
+            "statement": "Marketing analytics dashboard reported: orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-04 (monitoring alert).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-04"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-353a45f0-036f-4c32-8ee7-f39e7aa80d95",
+            "category": "fact",
+            "statement": "Datadog reported: Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-08 (monitoring alert).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-08"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-1683d6e8-433e-4fd2-8239-81b17e805e2d",
+            "category": "fact",
+            "statement": "orders-api-error.log reported: POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-05 (api error).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-05"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-2da4c012-122c-4cfb-8062-1baefbf44702",
+            "category": "fact",
+            "statement": "postgres-orders-primary.log reported: FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-06 (database error).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-06"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          }
+        ],
+        "assumptions": [
+          {
+            "id": "reasoning-566d4bf1-3ecb-4c03-84de-db55b3de90cb",
+            "category": "assumption",
+            "statement": "It is possible that this is related to the incident: orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.",
+            "explanation": "Based on deployment note evidence item sample-db-connection-leak-ev-02; this has not been confirmed.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-02"
+            ],
+            "confidence": 35,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-5a52aa5d-fe32-47a5-bfdf-85db9197c795",
+            "category": "assumption",
+            "statement": "It is possible that this is related to the incident: 8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.",
+            "explanation": "Based on user report evidence item sample-db-connection-leak-ev-09; this has not been confirmed.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-09"
+            ],
+            "confidence": 35,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-c82f3c6e-6dca-4282-9d36-9d48bf10dfb7",
+            "category": "assumption",
+            "statement": "It is possible that this is related to the incident: This same connection-pool-utilization alert has fired sporadically 3-4 times over the past two months, always self-resolving within an hour with no deploy involved. Exact prior dates were not logged anywhere searchable.",
+            "explanation": "Based on support message evidence item sample-db-connection-leak-ev-10; this has not been confirmed.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-10"
+            ],
+            "confidence": 35,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-37bdc11c-4f29-42a0-b313-8b17fcf42e99",
+            "category": "assumption",
+            "statement": "It is possible that this is related to the incident: Per-request connection-hold-time metrics are not currently instrumented for orders-service, so it is not possible to directly confirm from existing dashboards whether individual requests are holding connections for longer than before the deploy.",
+            "explanation": "Based on other evidence item sample-db-connection-leak-ev-11; this has not been confirmed.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-11"
+            ],
+            "confidence": 35,
+            "reviewStatus": "unreviewed"
+          }
+        ],
+        "hypotheses": [
+          {
+            "id": "hypothesis-f9dba76c-4d7c-4a8a-bac0-fb01bf983cd1",
+            "title": "Possible cause related to monitoring alert",
+            "description": "The 3 monitoring alert evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.",
+            "confidence": 70,
+            "confidenceReason": "Based on 3 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.",
+            "supportingEvidenceIds": [
+              "sample-db-connection-leak-ev-03",
+              "sample-db-connection-leak-ev-04",
+              "sample-db-connection-leak-ev-08"
+            ],
+            "contradictingEvidenceIds": [],
+            "assumptions": [
+              "No independent verification has been performed by this mock provider."
+            ],
+            "recommendedTest": "Review the 3 monitoring alert evidence item(s) referenced above to confirm or rule out this explanation.",
+            "expectedResult": "Confirmation or refutation of this hypothesis based on further investigation.",
+            "status": "proposed"
+          },
+          {
+            "id": "hypothesis-50d10985-d6e5-4d05-8df1-f321d7793c1a",
+            "title": "Possible cause related to application log",
+            "description": "The 1 application log evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.",
+            "confidence": 40,
+            "confidenceReason": "Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.",
+            "supportingEvidenceIds": [
+              "sample-db-connection-leak-ev-07"
+            ],
+            "contradictingEvidenceIds": [],
+            "assumptions": [
+              "No independent verification has been performed by this mock provider."
+            ],
+            "recommendedTest": "Review the 1 application log evidence item(s) referenced above to confirm or rule out this explanation.",
+            "expectedResult": "Confirmation or refutation of this hypothesis based on further investigation.",
+            "status": "proposed"
+          },
+          {
+            "id": "hypothesis-20e2d252-8630-40cf-8f9f-0a0d688ed72d",
+            "title": "Possible cause related to api error",
+            "description": "The 1 api error evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.",
+            "confidence": 40,
+            "confidenceReason": "Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.",
+            "supportingEvidenceIds": [
+              "sample-db-connection-leak-ev-05"
+            ],
+            "contradictingEvidenceIds": [],
+            "assumptions": [
+              "No independent verification has been performed by this mock provider."
+            ],
+            "recommendedTest": "Review the 1 api error evidence item(s) referenced above to confirm or rule out this explanation.",
+            "expectedResult": "Confirmation or refutation of this hypothesis based on further investigation.",
+            "status": "proposed"
+          },
+          {
+            "id": "hypothesis-d753104e-cd9f-4d1a-bc32-c6934643eb48",
+            "title": "Possible cause related to database error",
+            "description": "The 1 database error evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.",
+            "confidence": 40,
+            "confidenceReason": "Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.",
+            "supportingEvidenceIds": [
+              "sample-db-connection-leak-ev-06"
+            ],
+            "contradictingEvidenceIds": [],
+            "assumptions": [
+              "No independent verification has been performed by this mock provider."
+            ],
+            "recommendedTest": "Review the 1 database error evidence item(s) referenced above to confirm or rule out this explanation.",
+            "expectedResult": "Confirmation or refutation of this hypothesis based on further investigation.",
+            "status": "proposed"
+          }
+        ],
+        "reasoningRisks": [
+          {
+            "id": "bias-815fefbd-a079-4ce5-9f7e-4d707ce26dd0",
+            "biasType": "automation-bias",
+            "title": "Mock analysis has not been reviewed",
+            "description": "This analysis was produced by a deterministic mock AI provider for local development and testing, not a real reasoning model.",
+            "detectedIn": "overall-analysis",
+            "evidenceIds": [],
+            "riskLevel": "medium",
+            "mitigation": "Treat this output as a structural placeholder. Set AI_PROVIDER=anthropic for real analysis, and always have a human review any AI-generated hypothesis before acting on it."
+          },
+          {
+            "id": "bias-d5293554-e1b7-4217-828a-84bc03c419c0",
+            "biasType": "post-hoc-fallacy",
+            "title": "Deployment timing does not establish causation",
+            "description": "A deployment or configuration change is present in the evidence for this incident. Timing alone does not confirm that it caused the incident.",
+            "detectedIn": "hypotheses",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-02"
+            ],
+            "riskLevel": "medium",
+            "mitigation": "Look for a concrete causal mechanism (a specific config value, code change, or resource exhaustion), not just temporal proximity."
+          },
+          {
+            "id": "bias-f18bfae1-576f-4a1d-9785-8f2cd4d04946",
+            "biasType": "confirmation-bias",
+            "title": "No contradicting evidence has been identified",
+            "description": "4 of 4 hypothesis/hypotheses list no contradicting evidence. That may mean none exists, or it may mean disconfirming evidence was never actively sought.",
+            "detectedIn": "hypotheses",
+            "evidenceIds": [],
+            "riskLevel": "medium",
+            "mitigation": "For each hypothesis, deliberately search for evidence that argues against it, not only for it."
+          },
+          {
+            "id": "bias-bc8e6dc5-bc47-417f-9d00-c47ebeb751e0",
+            "biasType": "anchoring-bias",
+            "title": "Evidence predating the incident may anchor the investigation",
+            "description": "2 evidence item(s) are timestamped before the incident's recorded start time (2026-07-15T09:40:00Z). Early evidence can disproportionately anchor an investigation even when it later turns out to be unrelated.",
+            "detectedIn": "timeline",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-02",
+              "sample-db-connection-leak-ev-04"
+            ],
+            "riskLevel": "medium",
+            "mitigation": "Explicitly test whether this earlier evidence is causally connected to the incident, or whether it is a coincidental, unrelated signal."
+          }
+        ],
+        "recommendedActions": [
+          {
+            "id": "action-93d449c2-7b89-4ceb-a8c6-b07f17ec9e4e",
+            "title": "Pull raw metric values behind the alert(s) between 2026-07-15T09:30:00Z and 2026-07-15T10:05:00Z",
+            "description": "Retrieve the raw metric values behind the 3 monitoring alert item(s) from between 2026-07-15T09:30:00Z and 2026-07-15T10:05:00Z to determine whether the anomaly was a sudden spike or a sustained shift.",
+            "priority": "high",
+            "category": "monitor",
+            "relatedHypothesisIds": [
+              "hypothesis-f9dba76c-4d7c-4a8a-bac0-fb01bf983cd1"
+            ],
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-03",
+              "sample-db-connection-leak-ev-04",
+              "sample-db-connection-leak-ev-08"
+            ],
+            "expectedOutcome": "Clarifies the shape and severity of the underlying metric anomaly.",
+            "risk": "Low; this is a read-only investigation step.",
+            "status": "suggested"
+          },
+          {
+            "id": "action-29eecdd7-becd-4662-b1ec-d30925903ebb",
+            "title": "Inspect application log entries around 2026-07-15T09:45:00Z",
+            "description": "Inspect the 1 application log entries from around 2026-07-15T09:45:00Z for the exact error signature or stack trace, and check whether it correlates with any deployment or configuration change in this incident's timeline.",
+            "priority": "high",
+            "category": "inspect",
+            "relatedHypothesisIds": [
+              "hypothesis-50d10985-d6e5-4d05-8df1-f321d7793c1a"
+            ],
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-07"
+            ],
+            "expectedOutcome": "Confirms or rules out this evidence category as a contributing factor.",
+            "risk": "Low; this is a read-only investigation step.",
+            "status": "suggested"
+          },
+          {
+            "id": "action-eeefce70-f3fd-4519-8fe2-f365bd5ad11e",
+            "title": "Reproduce the failing request pattern around 2026-07-15T09:50:00Z",
+            "description": "Attempt to reproduce the exact request pattern behind the 1 api error item(s) from around 2026-07-15T09:50:00Z against a staging environment to confirm whether the failure is deterministic.",
+            "priority": "high",
+            "category": "reproduce",
+            "relatedHypothesisIds": [
+              "hypothesis-20e2d252-8630-40cf-8f9f-0a0d688ed72d"
+            ],
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-05"
+            ],
+            "expectedOutcome": "Confirms whether the failure can be reliably reproduced outside production.",
+            "risk": "Low; this is a read-only investigation step.",
+            "status": "suggested"
+          },
+          {
+            "id": "action-205f4e4f-1130-4e59-bdb3-d740dff08774",
+            "title": "Check database connection-pool and query metrics around 2026-07-15T09:52:00Z",
+            "description": "Query connection-pool utilization and query latency for the window around 2026-07-15T09:52:00Z, covering the 1 database error item(s) recorded here, to confirm whether resource exhaustion occurred.",
+            "priority": "high",
+            "category": "database-check",
+            "relatedHypothesisIds": [
+              "hypothesis-d753104e-cd9f-4d1a-bc32-c6934643eb48"
+            ],
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-06"
+            ],
+            "expectedOutcome": "Confirms or rules out database resource exhaustion as a contributing factor.",
+            "risk": "Low; this is a read-only investigation step.",
+            "status": "suggested"
+          }
+        ],
+        "openQuestions": [
+          "Has this hypothesis set been reviewed by a human investigator?",
+          "Is there additional evidence not yet captured in this incident record?"
+        ],
+        "unsupportedClaims": [],
+        "uncertaintyStatement": "This is a deterministic mock analysis intended for local development and testing. It reflects only the 11 evidence item(s) attached to this incident and has not been produced or reviewed by a real reasoning model.",
+        "validationWarnings": [],
+        "rawResponse": {
+          "rawText": "{\"summary\":{\"text\":\"Deterministic mock analysis of \\\"Order service failing with database connection-pool exhaustion\\\" based on 11 evidence item(s) affecting orders-service.\",\"affectedComponents\":[\"orders-service\"],\"impact\":\"Severity was classified as high. Actual user/business impact should be confirmed against the evidence.\"},\"timeline\":[{\"timestamp\":\"2026-07-15T09:30:00Z\",\"title\":\"Marketing analytics dashboard\",\"description\":\"orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-04\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:35:00Z\",\"title\":\"deploy-log-orders-service\",\"description\":\"orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-02\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:41:00Z\",\"title\":\"Datadog\",\"description\":\"Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-08\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:45:00Z\",\"title\":\"orders-service.log\",\"description\":\"INFO: \\\"session closed\\\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \\\"session opened\\\" frequency stayed roughly constant.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-07\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:50:00Z\",\"title\":\"orders-api-error.log\",\"description\":\"POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-05\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:52:00Z\",\"title\":\"postgres-orders-primary.log\",\"description\":\"FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-06\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:55:00Z\",\"title\":\"Support ticket queue\",\"description\":\"8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-09\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T10:05:00Z\",\"title\":\"Datadog\",\"description\":\"orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-03\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T10:12:00Z\",\"title\":\"Incident report\",\"description\":\"orders-service has been intermittently returning 500 errors since roughly 09:40 UTC, with logs pointing to database connection-pool exhaustion. A deploy shipped shortly before reports started; a marketing campaign also drove a traffic increase around the same time.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-01\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false}],\"facts\":[{\"statement\":\"orders-service.log reported: INFO: \\\"session closed\\\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \\\"session opened\\\" frequency stayed roughly constant.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-07 (application log).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-07\"],\"confidence\":80},{\"statement\":\"Datadog reported: orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-03 (monitoring alert).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-03\"],\"confidence\":80},{\"statement\":\"Marketing analytics dashboard reported: orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-04 (monitoring alert).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-04\"],\"confidence\":80},{\"statement\":\"Datadog reported: Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-08 (monitoring alert).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-08\"],\"confidence\":80},{\"statement\":\"orders-api-error.log reported: POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-05 (api error).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-05\"],\"confidence\":80},{\"statement\":\"postgres-orders-primary.log reported: FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-06 (database error).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-06\"],\"confidence\":80}],\"assumptions\":[{\"statement\":\"It is possible that this is related to the incident: orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.\",\"explanation\":\"Based on deployment note evidence item sample-db-connection-leak-ev-02; this has not been confirmed.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-02\"],\"confidence\":35},{\"statement\":\"It is possible that this is related to the incident: 8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.\",\"explanation\":\"Based on user report evidence item sample-db-connection-leak-ev-09; this has not been confirmed.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-09\"],\"confidence\":35},{\"statement\":\"It is possible that this is related to the incident: This same connection-pool-utilization alert has fired sporadically 3-4 times over the past two months, always self-resolving within an hour with no deploy involved. Exact prior dates were not logged anywhere searchable.\",\"explanation\":\"Based on support message evidence item sample-db-connection-leak-ev-10; this has not been confirmed.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-10\"],\"confidence\":35},{\"statement\":\"It is possible that this is related to the incident: Per-request connection-hold-time metrics are not currently instrumented for orders-service, so it is not possible to directly confirm from existing dashboards whether individual requests are holding connections for longer than before the deploy.\",\"explanation\":\"Based on other evidence item sample-db-connection-leak-ev-11; this has not been confirmed.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-11\"],\"confidence\":35}],\"hypotheses\":[{\"tempId\":\"H1\",\"title\":\"Possible cause related to monitoring alert\",\"description\":\"The 3 monitoring alert evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.\",\"confidence\":70,\"confidenceReason\":\"Based on 3 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.\",\"supportingEvidenceIds\":[\"sample-db-connection-leak-ev-03\",\"sample-db-connection-leak-ev-04\",\"sample-db-connection-leak-ev-08\"],\"contradictingEvidenceIds\":[],\"assumptions\":[\"No independent verification has been performed by this mock provider.\"],\"recommendedTest\":\"Review the 3 monitoring alert evidence item(s) referenced above to confirm or rule out this explanation.\",\"expectedResult\":\"Confirmation or refutation of this hypothesis based on further investigation.\"},{\"tempId\":\"H2\",\"title\":\"Possible cause related to application log\",\"description\":\"The 1 application log evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.\",\"confidence\":40,\"confidenceReason\":\"Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.\",\"supportingEvidenceIds\":[\"sample-db-connection-leak-ev-07\"],\"contradictingEvidenceIds\":[],\"assumptions\":[\"No independent verification has been performed by this mock provider.\"],\"recommendedTest\":\"Review the 1 application log evidence item(s) referenced above to confirm or rule out this explanation.\",\"expectedResult\":\"Confirmation or refutation of this hypothesis based on further investigation.\"},{\"tempId\":\"H3\",\"title\":\"Possible cause related to api error\",\"description\":\"The 1 api error evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.\",\"confidence\":40,\"confidenceReason\":\"Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.\",\"supportingEvidenceIds\":[\"sample-db-connection-leak-ev-05\"],\"contradictingEvidenceIds\":[],\"assumptions\":[\"No independent verification has been performed by this mock provider.\"],\"recommendedTest\":\"Review the 1 api error evidence item(s) referenced above to confirm or rule out this explanation.\",\"expectedResult\":\"Confirmation or refutation of this hypothesis based on further investigation.\"},{\"tempId\":\"H4\",\"title\":\"Possible cause related to database error\",\"description\":\"The 1 database error evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.\",\"confidence\":40,\"confidenceReason\":\"Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.\",\"supportingEvidenceIds\":[\"sample-db-connection-leak-ev-06\"],\"contradictingEvidenceIds\":[],\"assumptions\":[\"No independent verification has been performed by this mock provider.\"],\"recommendedTest\":\"Review the 1 database error evidence item(s) referenced above to confirm or rule out this explanation.\",\"expectedResult\":\"Confirmation or refutation of this hypothesis based on further investigation.\"}],\"reasoningRisks\":[{\"biasType\":\"automation-bias\",\"title\":\"Mock analysis has not been reviewed\",\"description\":\"This analysis was produced by a deterministic mock AI provider for local development and testing, not a real reasoning model.\",\"detectedIn\":\"overall-analysis\",\"evidenceIds\":[],\"riskLevel\":\"medium\",\"mitigation\":\"Treat this output as a structural placeholder. Set AI_PROVIDER=anthropic for real analysis, and always have a human review any AI-generated hypothesis before acting on it.\"},{\"biasType\":\"post-hoc-fallacy\",\"title\":\"Deployment timing does not establish causation\",\"description\":\"A deployment or configuration change is present in the evidence for this incident. Timing alone does not confirm that it caused the incident.\",\"detectedIn\":\"hypotheses\",\"evidenceIds\":[\"sample-db-connection-leak-ev-02\"],\"riskLevel\":\"medium\",\"mitigation\":\"Look for a concrete causal mechanism (a specific config value, code change, or resource exhaustion), not just temporal proximity.\"},{\"biasType\":\"confirmation-bias\",\"title\":\"No contradicting evidence has been identified\",\"description\":\"4 of 4 hypothesis/hypotheses list no contradicting evidence. That may mean none exists, or it may mean disconfirming evidence was never actively sought.\",\"detectedIn\":\"hypotheses\",\"evidenceIds\":[],\"riskLevel\":\"medium\",\"mitigation\":\"For each hypothesis, deliberately search for evidence that argues against it, not only for it.\"},{\"biasType\":\"anchoring-bias\",\"title\":\"Evidence predating the incident may anchor the investigation\",\"description\":\"2 evidence item(s) are timestamped before the incident's recorded start time (2026-07-15T09:40:00Z). Early evidence can disproportionately anchor an investigation even when it later turns out to be unrelated.\",\"detectedIn\":\"timeline\",\"evidenceIds\":[\"sample-db-connection-leak-ev-02\",\"sample-db-connection-leak-ev-04\"],\"riskLevel\":\"medium\",\"mitigation\":\"Explicitly test whether this earlier evidence is causally connected to the incident, or whether it is a coincidental, unrelated signal.\"}],\"recommendedActions\":[{\"title\":\"Pull raw metric values behind the alert(s) between 2026-07-15T09:30:00Z and 2026-07-15T10:05:00Z\",\"description\":\"Retrieve the raw metric values behind the 3 monitoring alert item(s) from between 2026-07-15T09:30:00Z and 2026-07-15T10:05:00Z to determine whether the anomaly was a sudden spike or a sustained shift.\",\"priority\":\"high\",\"category\":\"monitor\",\"relatedHypothesisIds\":[\"H1\"],\"evidenceIds\":[\"sample-db-connection-leak-ev-03\",\"sample-db-connection-leak-ev-04\",\"sample-db-connection-leak-ev-08\"],\"expectedOutcome\":\"Clarifies the shape and severity of the underlying metric anomaly.\",\"risk\":\"Low; this is a read-only investigation step.\"},{\"title\":\"Inspect application log entries around 2026-07-15T09:45:00Z\",\"description\":\"Inspect the 1 application log entries from around 2026-07-15T09:45:00Z for the exact error signature or stack trace, and check whether it correlates with any deployment or configuration change in this incident's timeline.\",\"priority\":\"high\",\"category\":\"inspect\",\"relatedHypothesisIds\":[\"H2\"],\"evidenceIds\":[\"sample-db-connection-leak-ev-07\"],\"expectedOutcome\":\"Confirms or rules out this evidence category as a contributing factor.\",\"risk\":\"Low; this is a read-only investigation step.\"},{\"title\":\"Reproduce the failing request pattern around 2026-07-15T09:50:00Z\",\"description\":\"Attempt to reproduce the exact request pattern behind the 1 api error item(s) from around 2026-07-15T09:50:00Z against a staging environment to confirm whether the failure is deterministic.\",\"priority\":\"high\",\"category\":\"reproduce\",\"relatedHypothesisIds\":[\"H3\"],\"evidenceIds\":[\"sample-db-connection-leak-ev-05\"],\"expectedOutcome\":\"Confirms whether the failure can be reliably reproduced outside production.\",\"risk\":\"Low; this is a read-only investigation step.\"},{\"title\":\"Check database connection-pool and query metrics around 2026-07-15T09:52:00Z\",\"description\":\"Query connection-pool utilization and query latency for the window around 2026-07-15T09:52:00Z, covering the 1 database error item(s) recorded here, to confirm whether resource exhaustion occurred.\",\"priority\":\"high\",\"category\":\"database-check\",\"relatedHypothesisIds\":[\"H4\"],\"evidenceIds\":[\"sample-db-connection-leak-ev-06\"],\"expectedOutcome\":\"Confirms or rules out database resource exhaustion as a contributing factor.\",\"risk\":\"Low; this is a read-only investigation step.\"}],\"openQuestions\":[\"Has this hypothesis set been reviewed by a human investigator?\",\"Is there additional evidence not yet captured in this incident record?\"],\"unsupportedClaims\":[],\"uncertaintyStatement\":\"This is a deterministic mock analysis intended for local development and testing. It reflects only the 11 evidence item(s) attached to this incident and has not been produced or reviewed by a real reasoning model.\"}",
+          "repaired": false
+        }
+      },
+      "quality": {
+        "completenessWarnings": [],
+        "qualityWarnings": [
+          "Every hypothesis has an empty contradicting-evidence list, despite 11 evidence items being available -- this may indicate confirmation bias in the analysis itself, or that contradicting evidence genuinely was not actively sought."
+        ]
+      },
+      "metadata": {
+        "providerUsed": "mock",
+        "configuredProvider": "mock",
+        "fallbackUsed": false,
+        "model": "mock-deterministic-v1",
+        "promptVersion": "incident-analysis-v2",
+        "durationMs": 1,
+        "redactionApplied": false,
+        "redactedValueCount": 0,
+        "redactionCategories": [],
+        "providerVerified": null
+      }
+    },
+    "variant": {
+      "incidentId": "sample-db-connection-leak",
+      "run": {
+        "id": "run-d393b8a8-5095-4dee-9ac1-cc965d6b5296",
+        "incidentId": "sample-db-connection-leak",
+        "provider": "mock",
+        "model": "mock-deterministic-v1",
+        "promptVersion": "incident-analysis-v2-argue-against-variant",
+        "createdAt": "2026-07-23T12:36:46.297Z",
+        "inputHash": "22e17216f7716388a6f629605885ed86f5d0693f0d89b3924d296f4e28c0f4d7",
+        "durationMs": 1,
+        "configuredProvider": "mock",
+        "fallbackUsed": false,
+        "fallbackReason": null,
+        "providerRequestId": null,
+        "completionRepairAttempted": false,
+        "completionRepairedSections": [],
+        "qualityWarnings": [
+          "Quality: Every hypothesis has an empty contradicting-evidence list, despite 11 evidence items being available -- this may indicate confirmation bias in the analysis itself, or that contradicting evidence genuinely was not actively sought."
+        ],
+        "status": "completed",
+        "summary": {
+          "text": "Deterministic mock analysis of \"Order service failing with database connection-pool exhaustion\" based on 11 evidence item(s) affecting orders-service.",
+          "affectedComponents": [
+            "orders-service"
+          ],
+          "impact": "Severity was classified as high. Actual user/business impact should be confirmed against the evidence."
+        },
+        "timeline": [
+          {
+            "id": "timeline-f89421a8-533d-4e1f-bad1-d35ab0a8b73b",
+            "timestamp": "2026-07-15T09:30:00Z",
+            "title": "Marketing analytics dashboard",
+            "description": "orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-04"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-90f1da10-5d5b-4268-89ca-3895af2138a7",
+            "timestamp": "2026-07-15T09:35:00Z",
+            "title": "deploy-log-orders-service",
+            "description": "orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-02"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-cee3cb94-ea1b-48b0-a7a9-85703c2dd99e",
+            "timestamp": "2026-07-15T09:41:00Z",
+            "title": "Datadog",
+            "description": "Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-08"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-725dbe99-fcc4-4dc2-a285-4f4461952529",
+            "timestamp": "2026-07-15T09:45:00Z",
+            "title": "orders-service.log",
+            "description": "INFO: \"session closed\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \"session opened\" frequency stayed roughly constant.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-07"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-39b9d2c7-c563-45b9-9d99-9071a843d7e9",
+            "timestamp": "2026-07-15T09:50:00Z",
+            "title": "orders-api-error.log",
+            "description": "POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-05"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-c4b8c6bb-df80-43e3-ab78-6c0cf756a1d1",
+            "timestamp": "2026-07-15T09:52:00Z",
+            "title": "postgres-orders-primary.log",
+            "description": "FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-06"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-ef6f983f-6cc7-4bde-8577-c7ef33fe4370",
+            "timestamp": "2026-07-15T09:55:00Z",
+            "title": "Support ticket queue",
+            "description": "8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-09"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-95045f33-a179-4f8f-8bb3-92aa2a0f140e",
+            "timestamp": "2026-07-15T10:05:00Z",
+            "title": "Datadog",
+            "description": "orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-03"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          },
+          {
+            "id": "timeline-93a56c71-87df-4637-8ee3-0d40de2ea4e0",
+            "timestamp": "2026-07-15T10:12:00Z",
+            "title": "Incident report",
+            "description": "orders-service has been intermittently returning 500 errors since roughly 09:40 UTC, with logs pointing to database connection-pool exhaustion. A deploy shipped shortly before reports started; a marketing campaign also drove a traffic increase around the same time.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-01"
+            ],
+            "timestampType": "exact",
+            "confidence": 90,
+            "isInferred": false
+          }
+        ],
+        "facts": [
+          {
+            "id": "reasoning-dd101195-a41b-4402-93d1-1257139aa2a4",
+            "category": "fact",
+            "statement": "orders-service.log reported: INFO: \"session closed\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \"session opened\" frequency stayed roughly constant.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-07 (application log).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-07"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-3aa62f33-120a-4e75-ae2d-1416f6767fb5",
+            "category": "fact",
+            "statement": "Datadog reported: orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-03 (monitoring alert).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-03"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-f7d53f4f-2ad3-4330-b63e-27f15ec65663",
+            "category": "fact",
+            "statement": "Marketing analytics dashboard reported: orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-04 (monitoring alert).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-04"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-e9ff2194-4aa3-46b4-94e6-81971656614b",
+            "category": "fact",
+            "statement": "Datadog reported: Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-08 (monitoring alert).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-08"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-2e027432-dbc2-4e26-a4a8-d3a7909df519",
+            "category": "fact",
+            "statement": "orders-api-error.log reported: POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-05 (api error).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-05"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-fef3a9ed-0b15-4b02-8bcb-b702d0bb58af",
+            "category": "fact",
+            "statement": "postgres-orders-primary.log reported: FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.",
+            "explanation": "Directly observed in evidence item sample-db-connection-leak-ev-06 (database error).",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-06"
+            ],
+            "confidence": 80,
+            "reviewStatus": "unreviewed"
+          }
+        ],
+        "assumptions": [
+          {
+            "id": "reasoning-201b452c-49aa-44ca-8dcf-655b5e277b05",
+            "category": "assumption",
+            "statement": "It is possible that this is related to the incident: orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.",
+            "explanation": "Based on deployment note evidence item sample-db-connection-leak-ev-02; this has not been confirmed.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-02"
+            ],
+            "confidence": 35,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-77d8f81a-fa2e-49a2-a1a3-0821a2722cf6",
+            "category": "assumption",
+            "statement": "It is possible that this is related to the incident: 8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.",
+            "explanation": "Based on user report evidence item sample-db-connection-leak-ev-09; this has not been confirmed.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-09"
+            ],
+            "confidence": 35,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-2d30d040-fdfb-423d-98ec-230d97f77768",
+            "category": "assumption",
+            "statement": "It is possible that this is related to the incident: This same connection-pool-utilization alert has fired sporadically 3-4 times over the past two months, always self-resolving within an hour with no deploy involved. Exact prior dates were not logged anywhere searchable.",
+            "explanation": "Based on support message evidence item sample-db-connection-leak-ev-10; this has not been confirmed.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-10"
+            ],
+            "confidence": 35,
+            "reviewStatus": "unreviewed"
+          },
+          {
+            "id": "reasoning-507d5725-b347-4390-b922-a6be7800e226",
+            "category": "assumption",
+            "statement": "It is possible that this is related to the incident: Per-request connection-hold-time metrics are not currently instrumented for orders-service, so it is not possible to directly confirm from existing dashboards whether individual requests are holding connections for longer than before the deploy.",
+            "explanation": "Based on other evidence item sample-db-connection-leak-ev-11; this has not been confirmed.",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-11"
+            ],
+            "confidence": 35,
+            "reviewStatus": "unreviewed"
+          }
+        ],
+        "hypotheses": [
+          {
+            "id": "hypothesis-83f47432-9164-4d40-ac91-6335a146799a",
+            "title": "Possible cause related to monitoring alert",
+            "description": "The 3 monitoring alert evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.",
+            "confidence": 70,
+            "confidenceReason": "Based on 3 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.",
+            "supportingEvidenceIds": [
+              "sample-db-connection-leak-ev-03",
+              "sample-db-connection-leak-ev-04",
+              "sample-db-connection-leak-ev-08"
+            ],
+            "contradictingEvidenceIds": [],
+            "assumptions": [
+              "No independent verification has been performed by this mock provider."
+            ],
+            "recommendedTest": "Review the 3 monitoring alert evidence item(s) referenced above to confirm or rule out this explanation.",
+            "expectedResult": "Confirmation or refutation of this hypothesis based on further investigation.",
+            "status": "proposed"
+          },
+          {
+            "id": "hypothesis-0b41a958-e273-4108-9c54-6c4627a5f144",
+            "title": "Possible cause related to application log",
+            "description": "The 1 application log evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.",
+            "confidence": 40,
+            "confidenceReason": "Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.",
+            "supportingEvidenceIds": [
+              "sample-db-connection-leak-ev-07"
+            ],
+            "contradictingEvidenceIds": [],
+            "assumptions": [
+              "No independent verification has been performed by this mock provider."
+            ],
+            "recommendedTest": "Review the 1 application log evidence item(s) referenced above to confirm or rule out this explanation.",
+            "expectedResult": "Confirmation or refutation of this hypothesis based on further investigation.",
+            "status": "proposed"
+          },
+          {
+            "id": "hypothesis-2442c851-c53b-4c14-bae3-29d6b5d286f9",
+            "title": "Possible cause related to api error",
+            "description": "The 1 api error evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.",
+            "confidence": 40,
+            "confidenceReason": "Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.",
+            "supportingEvidenceIds": [
+              "sample-db-connection-leak-ev-05"
+            ],
+            "contradictingEvidenceIds": [],
+            "assumptions": [
+              "No independent verification has been performed by this mock provider."
+            ],
+            "recommendedTest": "Review the 1 api error evidence item(s) referenced above to confirm or rule out this explanation.",
+            "expectedResult": "Confirmation or refutation of this hypothesis based on further investigation.",
+            "status": "proposed"
+          },
+          {
+            "id": "hypothesis-a66690b2-3358-46ac-90aa-713009237763",
+            "title": "Possible cause related to database error",
+            "description": "The 1 database error evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.",
+            "confidence": 40,
+            "confidenceReason": "Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.",
+            "supportingEvidenceIds": [
+              "sample-db-connection-leak-ev-06"
+            ],
+            "contradictingEvidenceIds": [],
+            "assumptions": [
+              "No independent verification has been performed by this mock provider."
+            ],
+            "recommendedTest": "Review the 1 database error evidence item(s) referenced above to confirm or rule out this explanation.",
+            "expectedResult": "Confirmation or refutation of this hypothesis based on further investigation.",
+            "status": "proposed"
+          }
+        ],
+        "reasoningRisks": [
+          {
+            "id": "bias-8f4c3fdc-239b-4e58-a087-7ce0e9baac87",
+            "biasType": "automation-bias",
+            "title": "Mock analysis has not been reviewed",
+            "description": "This analysis was produced by a deterministic mock AI provider for local development and testing, not a real reasoning model.",
+            "detectedIn": "overall-analysis",
+            "evidenceIds": [],
+            "riskLevel": "medium",
+            "mitigation": "Treat this output as a structural placeholder. Set AI_PROVIDER=anthropic for real analysis, and always have a human review any AI-generated hypothesis before acting on it."
+          },
+          {
+            "id": "bias-a55f3f91-3850-404c-a18a-6f5418e3041c",
+            "biasType": "post-hoc-fallacy",
+            "title": "Deployment timing does not establish causation",
+            "description": "A deployment or configuration change is present in the evidence for this incident. Timing alone does not confirm that it caused the incident.",
+            "detectedIn": "hypotheses",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-02"
+            ],
+            "riskLevel": "medium",
+            "mitigation": "Look for a concrete causal mechanism (a specific config value, code change, or resource exhaustion), not just temporal proximity."
+          },
+          {
+            "id": "bias-c9395f07-b52d-4984-bcd3-4eb9aca9c691",
+            "biasType": "confirmation-bias",
+            "title": "No contradicting evidence has been identified",
+            "description": "4 of 4 hypothesis/hypotheses list no contradicting evidence. That may mean none exists, or it may mean disconfirming evidence was never actively sought.",
+            "detectedIn": "hypotheses",
+            "evidenceIds": [],
+            "riskLevel": "medium",
+            "mitigation": "For each hypothesis, deliberately search for evidence that argues against it, not only for it."
+          },
+          {
+            "id": "bias-9a738947-f9f0-4003-830a-0c5a031c2ade",
+            "biasType": "anchoring-bias",
+            "title": "Evidence predating the incident may anchor the investigation",
+            "description": "2 evidence item(s) are timestamped before the incident's recorded start time (2026-07-15T09:40:00Z). Early evidence can disproportionately anchor an investigation even when it later turns out to be unrelated.",
+            "detectedIn": "timeline",
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-02",
+              "sample-db-connection-leak-ev-04"
+            ],
+            "riskLevel": "medium",
+            "mitigation": "Explicitly test whether this earlier evidence is causally connected to the incident, or whether it is a coincidental, unrelated signal."
+          }
+        ],
+        "recommendedActions": [
+          {
+            "id": "action-a377e4a2-fac5-4f1d-aff2-bf5b8a9c5257",
+            "title": "Pull raw metric values behind the alert(s) between 2026-07-15T09:30:00Z and 2026-07-15T10:05:00Z",
+            "description": "Retrieve the raw metric values behind the 3 monitoring alert item(s) from between 2026-07-15T09:30:00Z and 2026-07-15T10:05:00Z to determine whether the anomaly was a sudden spike or a sustained shift.",
+            "priority": "high",
+            "category": "monitor",
+            "relatedHypothesisIds": [
+              "hypothesis-83f47432-9164-4d40-ac91-6335a146799a"
+            ],
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-03",
+              "sample-db-connection-leak-ev-04",
+              "sample-db-connection-leak-ev-08"
+            ],
+            "expectedOutcome": "Clarifies the shape and severity of the underlying metric anomaly.",
+            "risk": "Low; this is a read-only investigation step.",
+            "status": "suggested"
+          },
+          {
+            "id": "action-c64bd033-6b7e-4e3a-b80a-8693f883ea1f",
+            "title": "Inspect application log entries around 2026-07-15T09:45:00Z",
+            "description": "Inspect the 1 application log entries from around 2026-07-15T09:45:00Z for the exact error signature or stack trace, and check whether it correlates with any deployment or configuration change in this incident's timeline.",
+            "priority": "high",
+            "category": "inspect",
+            "relatedHypothesisIds": [
+              "hypothesis-0b41a958-e273-4108-9c54-6c4627a5f144"
+            ],
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-07"
+            ],
+            "expectedOutcome": "Confirms or rules out this evidence category as a contributing factor.",
+            "risk": "Low; this is a read-only investigation step.",
+            "status": "suggested"
+          },
+          {
+            "id": "action-8f9b4548-d848-4f41-81ca-d3004335fca6",
+            "title": "Reproduce the failing request pattern around 2026-07-15T09:50:00Z",
+            "description": "Attempt to reproduce the exact request pattern behind the 1 api error item(s) from around 2026-07-15T09:50:00Z against a staging environment to confirm whether the failure is deterministic.",
+            "priority": "high",
+            "category": "reproduce",
+            "relatedHypothesisIds": [
+              "hypothesis-2442c851-c53b-4c14-bae3-29d6b5d286f9"
+            ],
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-05"
+            ],
+            "expectedOutcome": "Confirms whether the failure can be reliably reproduced outside production.",
+            "risk": "Low; this is a read-only investigation step.",
+            "status": "suggested"
+          },
+          {
+            "id": "action-b1cc1d42-2ed8-4f0e-ad61-8a939bd6d8fc",
+            "title": "Check database connection-pool and query metrics around 2026-07-15T09:52:00Z",
+            "description": "Query connection-pool utilization and query latency for the window around 2026-07-15T09:52:00Z, covering the 1 database error item(s) recorded here, to confirm whether resource exhaustion occurred.",
+            "priority": "high",
+            "category": "database-check",
+            "relatedHypothesisIds": [
+              "hypothesis-a66690b2-3358-46ac-90aa-713009237763"
+            ],
+            "evidenceIds": [
+              "sample-db-connection-leak-ev-06"
+            ],
+            "expectedOutcome": "Confirms or rules out database resource exhaustion as a contributing factor.",
+            "risk": "Low; this is a read-only investigation step.",
+            "status": "suggested"
+          }
+        ],
+        "openQuestions": [
+          "Has this hypothesis set been reviewed by a human investigator?",
+          "Is there additional evidence not yet captured in this incident record?"
+        ],
+        "unsupportedClaims": [],
+        "uncertaintyStatement": "This is a deterministic mock analysis intended for local development and testing. It reflects only the 11 evidence item(s) attached to this incident and has not been produced or reviewed by a real reasoning model.",
+        "validationWarnings": [],
+        "rawResponse": {
+          "rawText": "{\"summary\":{\"text\":\"Deterministic mock analysis of \\\"Order service failing with database connection-pool exhaustion\\\" based on 11 evidence item(s) affecting orders-service.\",\"affectedComponents\":[\"orders-service\"],\"impact\":\"Severity was classified as high. Actual user/business impact should be confirmed against the evidence.\"},\"timeline\":[{\"timestamp\":\"2026-07-15T09:30:00Z\",\"title\":\"Marketing analytics dashboard\",\"description\":\"orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-04\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:35:00Z\",\"title\":\"deploy-log-orders-service\",\"description\":\"orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-02\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:41:00Z\",\"title\":\"Datadog\",\"description\":\"Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-08\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:45:00Z\",\"title\":\"orders-service.log\",\"description\":\"INFO: \\\"session closed\\\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \\\"session opened\\\" frequency stayed roughly constant.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-07\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:50:00Z\",\"title\":\"orders-api-error.log\",\"description\":\"POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-05\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:52:00Z\",\"title\":\"postgres-orders-primary.log\",\"description\":\"FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-06\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T09:55:00Z\",\"title\":\"Support ticket queue\",\"description\":\"8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-09\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T10:05:00Z\",\"title\":\"Datadog\",\"description\":\"orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-03\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false},{\"timestamp\":\"2026-07-15T10:12:00Z\",\"title\":\"Incident report\",\"description\":\"orders-service has been intermittently returning 500 errors since roughly 09:40 UTC, with logs pointing to database connection-pool exhaustion. A deploy shipped shortly before reports started; a marketing campaign also drove a traffic increase around the same time.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-01\"],\"timestampType\":\"exact\",\"confidence\":90,\"isInferred\":false}],\"facts\":[{\"statement\":\"orders-service.log reported: INFO: \\\"session closed\\\" log line frequency dropped from ~48/min (pre-deploy baseline) to ~11/min after 09:35 UTC, while \\\"session opened\\\" frequency stayed roughly constant.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-07 (application log).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-07\"],\"confidence\":80},{\"statement\":\"Datadog reported: orders-db connection-pool utilization climbed steadily from 42% at 09:40 UTC to 100% at 10:05 UTC, then stayed pinned near 100% -- a gradual rise over 25 minutes, not a sudden spike.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-03 (monitoring alert).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-03\"],\"confidence\":80},{\"statement\":\"Marketing analytics dashboard reported: orders-service request volume up 35% starting 09:30 UTC, coinciding with a promotional email campaign sent to 400k subscribers at 09:28 UTC.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-04 (monitoring alert).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-04\"],\"confidence\":80},{\"statement\":\"Datadog reported: Scheduled autovacuum began on the orders_history table at 09:41 UTC, elevating disk I/O wait on the orders-db replica (not the primary) for its usual ~40 minute duration.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-08 (monitoring alert).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-08\"],\"confidence\":80},{\"statement\":\"orders-api-error.log reported: POST /api/orders -- 63 failures between 09:50 and 10:15 UTC. Error: 'connection pool exhausted, timed out waiting 5000ms for available connection'.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-05 (api error).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-05\"],\"confidence\":80},{\"statement\":\"postgres-orders-primary.log reported: FATAL: remaining connection slots are reserved for non-replication superuser connections -- logged 19 times between 09:52 and 10:20 UTC.\",\"explanation\":\"Directly observed in evidence item sample-db-connection-leak-ev-06 (database error).\",\"evidenceIds\":[\"sample-db-connection-leak-ev-06\"],\"confidence\":80}],\"assumptions\":[{\"statement\":\"It is possible that this is related to the incident: orders-service deployed v5.2.0 at 09:35 UTC: refactored the repository layer to use request-scoped database sessions via the new ORM session manager. DB connection pool max size unchanged at 30 per pod. Also included minor logging improvements.\",\"explanation\":\"Based on deployment note evidence item sample-db-connection-leak-ev-02; this has not been confirmed.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-02\"],\"confidence\":35},{\"statement\":\"It is possible that this is related to the incident: 8 tickets between 09:55 and 10:20 UTC: most mention the order eventually going through on a second or third attempt, e.g. 'had to try 3 times but it worked eventually', 'checkout hung then failed, retried and it was fine'.\",\"explanation\":\"Based on user report evidence item sample-db-connection-leak-ev-09; this has not been confirmed.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-09\"],\"confidence\":35},{\"statement\":\"It is possible that this is related to the incident: This same connection-pool-utilization alert has fired sporadically 3-4 times over the past two months, always self-resolving within an hour with no deploy involved. Exact prior dates were not logged anywhere searchable.\",\"explanation\":\"Based on support message evidence item sample-db-connection-leak-ev-10; this has not been confirmed.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-10\"],\"confidence\":35},{\"statement\":\"It is possible that this is related to the incident: Per-request connection-hold-time metrics are not currently instrumented for orders-service, so it is not possible to directly confirm from existing dashboards whether individual requests are holding connections for longer than before the deploy.\",\"explanation\":\"Based on other evidence item sample-db-connection-leak-ev-11; this has not been confirmed.\",\"evidenceIds\":[\"sample-db-connection-leak-ev-11\"],\"confidence\":35}],\"hypotheses\":[{\"tempId\":\"H1\",\"title\":\"Possible cause related to monitoring alert\",\"description\":\"The 3 monitoring alert evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.\",\"confidence\":70,\"confidenceReason\":\"Based on 3 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.\",\"supportingEvidenceIds\":[\"sample-db-connection-leak-ev-03\",\"sample-db-connection-leak-ev-04\",\"sample-db-connection-leak-ev-08\"],\"contradictingEvidenceIds\":[],\"assumptions\":[\"No independent verification has been performed by this mock provider.\"],\"recommendedTest\":\"Review the 3 monitoring alert evidence item(s) referenced above to confirm or rule out this explanation.\",\"expectedResult\":\"Confirmation or refutation of this hypothesis based on further investigation.\"},{\"tempId\":\"H2\",\"title\":\"Possible cause related to application log\",\"description\":\"The 1 application log evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.\",\"confidence\":40,\"confidenceReason\":\"Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.\",\"supportingEvidenceIds\":[\"sample-db-connection-leak-ev-07\"],\"contradictingEvidenceIds\":[],\"assumptions\":[\"No independent verification has been performed by this mock provider.\"],\"recommendedTest\":\"Review the 1 application log evidence item(s) referenced above to confirm or rule out this explanation.\",\"expectedResult\":\"Confirmation or refutation of this hypothesis based on further investigation.\"},{\"tempId\":\"H3\",\"title\":\"Possible cause related to api error\",\"description\":\"The 1 api error evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.\",\"confidence\":40,\"confidenceReason\":\"Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.\",\"supportingEvidenceIds\":[\"sample-db-connection-leak-ev-05\"],\"contradictingEvidenceIds\":[],\"assumptions\":[\"No independent verification has been performed by this mock provider.\"],\"recommendedTest\":\"Review the 1 api error evidence item(s) referenced above to confirm or rule out this explanation.\",\"expectedResult\":\"Confirmation or refutation of this hypothesis based on further investigation.\"},{\"tempId\":\"H4\",\"title\":\"Possible cause related to database error\",\"description\":\"The 1 database error evidence item(s) attached to this incident may indicate a contributing factor. This has not been independently confirmed.\",\"confidence\":40,\"confidenceReason\":\"Based on 1 related evidence item(s) of this type. Confidence is limited because this is a deterministic mock analysis, not a full investigation.\",\"supportingEvidenceIds\":[\"sample-db-connection-leak-ev-06\"],\"contradictingEvidenceIds\":[],\"assumptions\":[\"No independent verification has been performed by this mock provider.\"],\"recommendedTest\":\"Review the 1 database error evidence item(s) referenced above to confirm or rule out this explanation.\",\"expectedResult\":\"Confirmation or refutation of this hypothesis based on further investigation.\"}],\"reasoningRisks\":[{\"biasType\":\"automation-bias\",\"title\":\"Mock analysis has not been reviewed\",\"description\":\"This analysis was produced by a deterministic mock AI provider for local development and testing, not a real reasoning model.\",\"detectedIn\":\"overall-analysis\",\"evidenceIds\":[],\"riskLevel\":\"medium\",\"mitigation\":\"Treat this output as a structural placeholder. Set AI_PROVIDER=anthropic for real analysis, and always have a human review any AI-generated hypothesis before acting on it.\"},{\"biasType\":\"post-hoc-fallacy\",\"title\":\"Deployment timing does not establish causation\",\"description\":\"A deployment or configuration change is present in the evidence for this incident. Timing alone does not confirm that it caused the incident.\",\"detectedIn\":\"hypotheses\",\"evidenceIds\":[\"sample-db-connection-leak-ev-02\"],\"riskLevel\":\"medium\",\"mitigation\":\"Look for a concrete causal mechanism (a specific config value, code change, or resource exhaustion), not just temporal proximity.\"},{\"biasType\":\"confirmation-bias\",\"title\":\"No contradicting evidence has been identified\",\"description\":\"4 of 4 hypothesis/hypotheses list no contradicting evidence. That may mean none exists, or it may mean disconfirming evidence was never actively sought.\",\"detectedIn\":\"hypotheses\",\"evidenceIds\":[],\"riskLevel\":\"medium\",\"mitigation\":\"For each hypothesis, deliberately search for evidence that argues against it, not only for it.\"},{\"biasType\":\"anchoring-bias\",\"title\":\"Evidence predating the incident may anchor the investigation\",\"description\":\"2 evidence item(s) are timestamped before the incident's recorded start time (2026-07-15T09:40:00Z). Early evidence can disproportionately anchor an investigation even when it later turns out to be unrelated.\",\"detectedIn\":\"timeline\",\"evidenceIds\":[\"sample-db-connection-leak-ev-02\",\"sample-db-connection-leak-ev-04\"],\"riskLevel\":\"medium\",\"mitigation\":\"Explicitly test whether this earlier evidence is causally connected to the incident, or whether it is a coincidental, unrelated signal.\"}],\"recommendedActions\":[{\"title\":\"Pull raw metric values behind the alert(s) between 2026-07-15T09:30:00Z and 2026-07-15T10:05:00Z\",\"description\":\"Retrieve the raw metric values behind the 3 monitoring alert item(s) from between 2026-07-15T09:30:00Z and 2026-07-15T10:05:00Z to determine whether the anomaly was a sudden spike or a sustained shift.\",\"priority\":\"high\",\"category\":\"monitor\",\"relatedHypothesisIds\":[\"H1\"],\"evidenceIds\":[\"sample-db-connection-leak-ev-03\",\"sample-db-connection-leak-ev-04\",\"sample-db-connection-leak-ev-08\"],\"expectedOutcome\":\"Clarifies the shape and severity of the underlying metric anomaly.\",\"risk\":\"Low; this is a read-only investigation step.\"},{\"title\":\"Inspect application log entries around 2026-07-15T09:45:00Z\",\"description\":\"Inspect the 1 application log entries from around 2026-07-15T09:45:00Z for the exact error signature or stack trace, and check whether it correlates with any deployment or configuration change in this incident's timeline.\",\"priority\":\"high\",\"category\":\"inspect\",\"relatedHypothesisIds\":[\"H2\"],\"evidenceIds\":[\"sample-db-connection-leak-ev-07\"],\"expectedOutcome\":\"Confirms or rules out this evidence category as a contributing factor.\",\"risk\":\"Low; this is a read-only investigation step.\"},{\"title\":\"Reproduce the failing request pattern around 2026-07-15T09:50:00Z\",\"description\":\"Attempt to reproduce the exact request pattern behind the 1 api error item(s) from around 2026-07-15T09:50:00Z against a staging environment to confirm whether the failure is deterministic.\",\"priority\":\"high\",\"category\":\"reproduce\",\"relatedHypothesisIds\":[\"H3\"],\"evidenceIds\":[\"sample-db-connection-leak-ev-05\"],\"expectedOutcome\":\"Confirms whether the failure can be reliably reproduced outside production.\",\"risk\":\"Low; this is a read-only investigation step.\"},{\"title\":\"Check database connection-pool and query metrics around 2026-07-15T09:52:00Z\",\"description\":\"Query connection-pool utilization and query latency for the window around 2026-07-15T09:52:00Z, covering the 1 database error item(s) recorded here, to confirm whether resource exhaustion occurred.\",\"priority\":\"high\",\"category\":\"database-check\",\"relatedHypothesisIds\":[\"H4\"],\"evidenceIds\":[\"sample-db-connection-leak-ev-06\"],\"expectedOutcome\":\"Confirms or rules out database resource exhaustion as a contributing factor.\",\"risk\":\"Low; this is a read-only investigation step.\"}],\"openQuestions\":[\"Has this hypothesis set been reviewed by a human investigator?\",\"Is there additional evidence not yet captured in this incident record?\"],\"unsupportedClaims\":[],\"uncertaintyStatement\":\"This is a deterministic mock analysis intended for local development and testing. It reflects only the 11 evidence item(s) attached to this incident and has not been produced or reviewed by a real reasoning model.\"}",
+          "repaired": false
+        }
+      },
+      "quality": {
+        "completenessWarnings": [],
+        "qualityWarnings": [
+          "Every hypothesis has an empty contradicting-evidence list, despite 11 evidence items being available -- this may indicate confirmation bias in the analysis itself, or that contradicting evidence genuinely was not actively sought."
+        ]
+      },
+      "metadata": {
+        "providerUsed": "mock",
+        "configuredProvider": "mock",
+        "fallbackUsed": false,
+        "model": "mock-deterministic-v1",
+        "promptVersion": "incident-analysis-v2-argue-against-variant",
+        "durationMs": 1,
+        "redactionApplied": false,
+        "redactedValueCount": 0,
+        "redactionCategories": [],
+        "providerVerified": null
+      }
+    },
+    "note": "MockAIProvider ignores prompt text entirely (see MockAIProvider.complete), so it cannot meaningfully demonstrate prompt sensitivity. This leg only confirms the \"argue against the first apparent cause\" variant still produces a schema-valid AnalysisRun through the shared validation pipeline. The actual sensitivity comparison requires a real provider -- see \"realComparison\" below."
+  },
+  "realComparison": {
+    "status": "not-run",
+    "reason": "No real provider was configured for this experiment run."
+  }
+}

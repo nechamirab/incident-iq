@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "test": "npm run test:client && npm run test --workspace=server",
     "test:client": "vitest run",
+    "ai:experiment": "npm run ai:experiment --workspace=server --",
     "format": "prettier --write .",
     "preview": "vite preview"
   },
