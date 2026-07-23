@@ -601,7 +601,7 @@ describe('MockAIProvider postmortem', () => {
 
   it('falls back to a generic note when no reasoning risks were flagged', async () => {
     const incident = sampleIncidents[0];
-    const run = buildAnalysisRun(incident, incident.evidence[0].id);
+    const run = buildAnalysisRun(incident, incident.evidence[0].id, { reasoningRisks: [] });
     expect(run.reasoningRisks).toHaveLength(0);
 
     const rawText = await provider.complete(incident, buildPostmortemPrompt(incident, run), {

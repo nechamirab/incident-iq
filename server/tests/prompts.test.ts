@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildIncidentAnalysisPrompt } from '../src/ai/prompts/incidentAnalysisV1.js';
+import { buildIncidentAnalysisPrompt, INCIDENT_ANALYSIS_PROMPT_VERSION } from '../src/ai/prompts/incidentAnalysisV1.js';
+import { buildIncidentAnalysisPromptV2, INCIDENT_ANALYSIS_V2_PROMPT_VERSION } from '../src/ai/prompts/incidentAnalysisV2.js';
+import { buildTargetedCompletionRepairPrompt } from '../src/ai/prompts/targetedCompletionRepairV1.js';
 import { buildPostmortemPrompt } from '../src/ai/prompts/postmortemV1.js';
 import { buildRepairPrompt } from '../src/ai/prompts/repairInvalidJsonV1.js';
 import { buildSkepticReviewPrompt, findLeadingHypothesis } from '../src/ai/prompts/skepticReviewV1.js';
@@ -30,6 +32,104 @@ describe('buildIncidentAnalysisPrompt', () => {
   it('requires at least three hypotheses and evidence-cited facts', () => {
     expect(prompt.system).toMatch(/at least three/i);
     expect(prompt.system).toMatch(/evidence id/i);
+  });
+});
+
+describe('buildIncidentAnalysisPromptV2', () => {
+  const incident = sampleIncidents[0];
+  const prompt = buildIncidentAnalysisPromptV2(incident);
+
+  it('is versioned distinctly from v1, and v1 is preserved unchanged (for prompt-comparison experiments)', () => {
+    expect(INCIDENT_ANALYSIS_V2_PROMPT_VERSION).toBe('incident-analysis-v2');
+    expect(INCIDENT_ANALYSIS_PROMPT_VERSION).toBe('incident-analysis-v1');
+    expect(INCIDENT_ANALYSIS_V2_PROMPT_VERSION).not.toBe(INCIDENT_ANALYSIS_PROMPT_VERSION);
+  });
+
+  it('includes every evidence id in the user prompt so the model can cite them', () => {
+    for (const item of incident.evidence) {
+      expect(prompt.user).toContain(item.id);
+    }
+  });
+
+  it('explicitly instructs the model to actively search for contradicting evidence', () => {
+    expect(prompt.system.toLowerCase()).toContain('actively');
+    expect(prompt.system.toLowerCase()).toContain('contradict');
+  });
+
+  it('instructs the model to explain an empty contradicting-evidence list rather than leave it silent', () => {
+    expect(prompt.system).toMatch(/confidenceReason/);
+    expect(prompt.system.toLowerCase()).toContain('unexplained');
+  });
+
+  it('instructs the model to ground reasoning risks in the specific incident, not a generic list', () => {
+    expect(prompt.system.toLowerCase()).toContain('generic list');
+  });
+
+  it('forbids generic recommended actions and requires an evidence/hypothesis/question link', () => {
+    expect(prompt.system.toLowerCase()).toContain('check the logs');
+    expect(prompt.system.toLowerCase()).toContain('investigate further');
+  });
+
+  it('restricts bias types to the exact schema-supported list', () => {
+    expect(prompt.system).toContain('confirmation-bias');
+    expect(prompt.system).toContain('base-rate-neglect');
+    expect(prompt.system.toLowerCase()).toContain('never invent a different bias name');
+  });
+
+  it('warns against presenting correlation as proven causation', () => {
+    expect(prompt.system.toLowerCase()).toContain('correlation');
+    expect(prompt.system.toLowerCase()).toContain('causal');
+  });
+
+  it('includes a clearly-labeled illustrative example using synthetic, unrelated evidence ids', () => {
+    expect(prompt.system).toContain('Illustrative example only');
+    expect(prompt.system).toContain('example-ev-01');
+    // The example must never leak into what the model is told to reuse verbatim.
+    expect(prompt.system.toLowerCase()).toContain('not content to copy');
+  });
+});
+
+describe('buildTargetedCompletionRepairPrompt', () => {
+  const incident = sampleIncidents[0];
+  const originalPrompt = buildIncidentAnalysisPromptV2(incident);
+  const knownEvidenceIds = incident.evidence.map((item) => item.id);
+
+  it('lists the known evidence ids so the repair cannot invent new ones', () => {
+    const repair = buildTargetedCompletionRepairPrompt(
+      originalPrompt,
+      '{"reasoningRisks": []}',
+      ['empty-reasoning-risks'],
+      knownEvidenceIds,
+    );
+    for (const id of knownEvidenceIds) {
+      expect(repair.system).toContain(id);
+    }
+    expect(repair.system.toLowerCase()).toContain('do not invent new evidence ids');
+  });
+
+  it('describes only the targeted deficiency, not every possible one', () => {
+    const repair = buildTargetedCompletionRepairPrompt(
+      originalPrompt,
+      '{}',
+      ['empty-recommended-actions'],
+      knownEvidenceIds,
+    );
+    expect(repair.user).toContain('recommendedActions');
+    // Deficiencies that were NOT targeted must not be described in this repair request.
+    expect(repair.user).not.toContain('"reasoningRisks" is empty');
+    expect(repair.user).not.toContain('"openQuestions" is empty');
+  });
+
+  it('instructs the model to leave facts and summary unchanged', () => {
+    const repair = buildTargetedCompletionRepairPrompt(originalPrompt, '{}', ['empty-open-questions'], knownEvidenceIds);
+    expect(repair.system.toLowerCase()).toContain('unchanged');
+    expect(repair.system).toContain('facts');
+  });
+
+  it('includes the previous response text for the model to build on', () => {
+    const previousResponse = '{"marker-for-test": "abc123"}';
+    const repair = buildTargetedCompletionRepairPrompt(originalPrompt, previousResponse, ['empty-open-questions'], knownEvidenceIds);
+    expect(repair.user).toContain(previousResponse);
   });
 });
 

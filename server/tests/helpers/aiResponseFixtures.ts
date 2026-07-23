@@ -64,7 +64,17 @@ export function buildValidAiResponse(
         expectedResult: 'A third expected result.',
       },
     ],
-    reasoningRisks: [],
+    reasoningRisks: [
+      {
+        biasType: 'confirmation-bias',
+        title: 'Leading hypothesis lacks contradicting evidence',
+        description: 'No evidence weighing against hypothesis one was identified.',
+        detectedIn: 'hypotheses',
+        evidenceIds: [],
+        riskLevel: 'medium',
+        mitigation: 'Actively search for evidence that would weaken hypothesis one.',
+      },
+    ],
     recommendedActions: [
       {
         title: 'Investigate further',

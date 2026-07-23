@@ -48,6 +48,30 @@ export const AnalysisRunSchema = z.object({
   fallbackReason: z.string().nullable().optional(),
   /** A safe, provider-issued request id (e.g. from OpenAI's `x-request-id` header), when the provider exposes one -- never an auth header or other secret. `null`/absent when not available (e.g. mock, or a provider that doesn't track one). */
   providerRequestId: z.string().nullable().optional(),
+  /**
+   * Whether a targeted completion-repair pass was attempted after the
+   * initial response validated successfully but a quality gate found it
+   * incomplete (e.g. no reasoning risks, no recommended actions). `false`/
+   * absent when the first response already passed the quality gate.
+   */
+  completionRepairAttempted: z.boolean().optional(),
+  /**
+   * Which sections the completion-repair pass actually improved (e.g.
+   * `["reasoningRisks", "recommendedActions"]`) -- empty when no repair was
+   * attempted, or when a repair was attempted but did not produce grounded
+   * content for any deficient section (the original result is kept either
+   * way; see `qualityWarnings`).
+   */
+  completionRepairedSections: z.array(z.string()).optional(),
+  /**
+   * Non-blocking completeness/quality observations from the
+   * provider-independent quality gate (e.g. "no reasoning risks were
+   * identified despite N evidence items") -- distinct from
+   * `validationWarnings`, which covers schema/evidence-integrity issues.
+   * A quality warning never means the run is invalid; some incidents
+   * genuinely have no contradicting evidence or no detectable bias.
+   */
+  qualityWarnings: z.array(z.string()).optional(),
   summary: AnalysisRunSummarySchema,
   timeline: z.array(TimelineEventSchema),
   facts: z.array(ReasoningItemSchema),

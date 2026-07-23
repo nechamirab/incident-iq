@@ -23,7 +23,7 @@ describe('analyzeIncident', () => {
     const run = await analyzeIncident(repository, provider, incident.id);
 
     expect(run.status).toBe('completed');
-    expect(run.promptVersion).toBe('incident-analysis-v1');
+    expect(run.promptVersion).toBe('incident-analysis-v2');
     expect(provider.callCount).toBe(1);
 
     const updated = await repository.findById(incident.id);
@@ -152,5 +152,137 @@ describe('analyzeIncident', () => {
 
     const updated = await repository.findById(incident.id);
     expect(updated?.status).toBe('draft');
+  });
+
+  describe('targeted completion-repair pass', () => {
+    it('does not attempt a completion-repair call when the first response is already complete', async () => {
+      const repository = buildRepository();
+      const incident = sampleIncidents[0];
+      const provider = new FakeAIProvider([
+        JSON.stringify(buildValidAiResponse({}, incident.evidence[0].id)),
+      ]);
+
+      const run = await analyzeIncident(repository, provider, incident.id);
+
+      expect(provider.callCount).toBe(1);
+      expect(run.completionRepairAttempted).toBe(false);
+      expect(run.completionRepairedSections).toEqual([]);
+    });
+
+    it('attempts exactly one repair call when the first response has an empty reasoningRisks section, and adopts the improvement', async () => {
+      const repository = buildRepository();
+      const incident = sampleIncidents[0]; // 12 evidence items -- a "rich" incident.
+      const evidenceId = incident.evidence[0].id;
+
+      const deficientResponse = buildValidAiResponse({ reasoningRisks: [] }, evidenceId);
+      const repairedResponse = buildValidAiResponse(
+        {
+          reasoningRisks: [
+            {
+              biasType: 'anchoring-bias',
+              title: 'Early evidence may have anchored the investigation',
+              description: 'x',
+              detectedIn: 'timeline',
+              evidenceIds: [evidenceId],
+              riskLevel: 'medium',
+              mitigation: 'x',
+            },
+          ],
+        },
+        evidenceId,
+      );
+
+      const provider = new FakeAIProvider([
+        JSON.stringify(deficientResponse),
+        JSON.stringify(repairedResponse),
+      ]);
+
+      const run = await analyzeIncident(repository, provider, incident.id);
+
+      expect(provider.callCount).toBe(2);
+      expect(run.completionRepairAttempted).toBe(true);
+      expect(run.completionRepairedSections).toEqual(['reasoningRisks']);
+      expect(run.reasoningRisks).toHaveLength(1);
+      // The repair prompt must restate the known evidence ids and reference the prior response.
+      expect(provider.promptsReceived[1]?.system).toContain(evidenceId);
+    });
+
+    it('keeps the original result when the repair call does not actually improve the deficient section', async () => {
+      const repository = buildRepository();
+      const incident = sampleIncidents[0];
+      const evidenceId = incident.evidence[0].id;
+
+      const deficientResponse = buildValidAiResponse({ reasoningRisks: [] }, evidenceId);
+      // The "repaired" response is still deficient -- a genuine case where the model found nothing to add.
+      const stillDeficientResponse = buildValidAiResponse({ reasoningRisks: [] }, evidenceId);
+
+      const provider = new FakeAIProvider([
+        JSON.stringify(deficientResponse),
+        JSON.stringify(stillDeficientResponse),
+      ]);
+
+      const run = await analyzeIncident(repository, provider, incident.id);
+
+      expect(run.completionRepairAttempted).toBe(true);
+      expect(run.completionRepairedSections).toEqual([]);
+      expect(run.reasoningRisks).toEqual([]);
+      expect(run.qualityWarnings?.some((w) => w.includes('reasoning risks'))).toBe(true);
+    });
+
+    it('keeps the original valid result when the repair call itself throws', async () => {
+      const repository = buildRepository();
+      const incident = sampleIncidents[0];
+      const evidenceId = incident.evidence[0].id;
+      const deficientResponse = buildValidAiResponse({ reasoningRisks: [] }, evidenceId);
+
+      const provider = new FakeAIProvider([
+        JSON.stringify(deficientResponse),
+        new Error('network exploded during repair'),
+      ]);
+
+      const run = await analyzeIncident(repository, provider, incident.id);
+
+      expect(run.status).toBe('completed');
+      expect(run.completionRepairAttempted).toBe(true);
+      expect(run.completionRepairedSections).toEqual([]);
+      expect(run.reasoningRisks).toEqual([]);
+    });
+
+    it('never alters facts via the completion-repair pass', async () => {
+      const repository = buildRepository();
+      const incident = sampleIncidents[0];
+      const evidenceId = incident.evidence[0].id;
+
+      const deficientResponse = buildValidAiResponse({ reasoningRisks: [] }, evidenceId);
+      const repairedWithDifferentFacts = buildValidAiResponse(
+        {
+          facts: [{ statement: 'A totally different fact.', explanation: 'x', evidenceIds: [evidenceId], confidence: 90 }],
+          reasoningRisks: [
+            {
+              biasType: 'automation-bias',
+              title: 'x',
+              description: 'x',
+              detectedIn: 'overall-analysis',
+              evidenceIds: [],
+              riskLevel: 'low',
+              mitigation: 'x',
+            },
+          ],
+        },
+        evidenceId,
+      );
+
+      const provider = new FakeAIProvider([
+        JSON.stringify(deficientResponse),
+        JSON.stringify(repairedWithDifferentFacts),
+      ]);
+
+      const run = await analyzeIncident(repository, provider, incident.id);
+
+      expect(run.facts.map((f) => f.statement)).toEqual(
+        deficientResponse.facts.map((f) => f.statement),
+      );
+      expect(run.reasoningRisks).toHaveLength(1);
+    });
   });
 });

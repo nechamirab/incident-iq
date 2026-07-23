@@ -10,6 +10,7 @@ import { hashIncidentInput } from '../utils/hashIncidentInput.js';
 import type { AiAnalysisResponse } from './schemas/aiAnalysisResponse.schema.js';
 import { findUnknownEvidenceReferences } from './validators/evidenceReferenceValidator.js';
 import { detectUnsupportedFacts } from './validators/unsupportedClaimDetector.js';
+import { evaluateAnalysisQuality } from './validators/analysisQualityEvaluator.js';
 
 export interface MapAnalysisResponseParams {
   incident: Incident;
@@ -24,6 +25,10 @@ export interface MapAnalysisResponseParams {
   fallbackUsed?: boolean;
   fallbackReason?: string | null;
   providerRequestId?: string | null;
+  /** Whether `analysisService` attempted a targeted completion-repair pass on this response. */
+  completionRepairAttempted?: boolean;
+  /** Which sections the completion-repair pass actually improved, if attempted. */
+  completionRepairedSections?: string[];
 }
 
 /**
@@ -48,10 +53,18 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
     fallbackUsed = false,
     fallbackReason = null,
     providerRequestId = null,
+    completionRepairAttempted = false,
+    completionRepairedSections = [],
   } = params;
 
   const knownEvidenceIds = new Set(incident.evidence.map((item) => item.id));
   const validationWarnings = findUnknownEvidenceReferences(response, knownEvidenceIds);
+
+  const qualityReport = evaluateAnalysisQuality(response, incident.evidence.length);
+  const qualityWarnings = [
+    ...qualityReport.completenessWarnings.map((w) => `Completeness: ${w}`),
+    ...qualityReport.qualityWarnings.map((w) => `Quality: ${w}`),
+  ];
 
   const hypothesisIdByTempId = new Map<string, string>();
   const hypotheses: Hypothesis[] = response.hypotheses.map((hypothesis) => {
@@ -186,6 +199,9 @@ export function mapAiResponseToAnalysisRun(params: MapAnalysisResponseParams): A
     fallbackUsed,
     fallbackReason,
     providerRequestId,
+    completionRepairAttempted,
+    completionRepairedSections,
+    qualityWarnings,
     status: 'completed',
     summary: response.summary,
     timeline,
