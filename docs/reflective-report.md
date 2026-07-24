@@ -2,7 +2,7 @@
 
 **Project name:** IncidentIQ
 **Students:** Nechami Rabinovitz and Maayan Vaknin
-**Institution:** Hadassah Academic College
+**Institution:** Jerusalem Multidisciplinary College
 **Program:** Computer Science
 **Work mode:** Pair project
 **GitHub repository:** https://github.com/nechamirab/incident-iq
@@ -24,14 +24,13 @@ investigation, and to prove that honesty with real, evidence-based testing rathe
 
 ## 2. Professional Context
 
-Production incident response is exactly the kind of high-stakes, time-pressured domain where an
-overconfident or hallucinated AI answer is genuinely dangerous: a team that trusts a wrong "root
-cause" can roll back the wrong change, page the wrong on-call engineer, or close an incident before
-the actual problem is fixed. This project treats that risk as a first-class design constraint rather
-than an afterthought — every architectural decision in this codebase (the facts/assumptions split,
-the unsupported-claims mechanism, the skeptic review, the human-only hypothesis-confirmation
-workflow) exists specifically because of what can go wrong when AI-assisted reasoning tools are used
-carelessly in this professional context.
+Production incident response is a high-stakes, time-pressured domain where an overconfident or
+hallucinated AI answer is genuinely dangerous: a team trusting a wrong "root cause" can roll back the
+wrong change, page the wrong engineer, or close an incident before the real problem is fixed. This
+project treats that risk as a first-class design constraint, not an afterthought — the
+facts/assumptions split, the unsupported-claims mechanism, the skeptic review, and the human-only
+hypothesis-confirmation workflow all exist because of what can go wrong when AI-assisted reasoning
+tools are used carelessly here.
 
 ## 3. Objectives
 
@@ -46,17 +45,14 @@ about what has and has not actually been verified to work.
 
 ## 4. System Architecture
 
-The system is a single repository with three layers: a React/Vite/TypeScript frontend (Material UI,
+The system is one repository with three layers: a React/Vite/TypeScript frontend (Material UI,
 TanStack Query, Zustand), an Express/TypeScript backend exposing a REST API under `/api`, and a
-shared Zod-schema layer (`shared/`) that is the single source of truth for every domain shape used by
-both runtimes, so a request/response/domain type can never silently drift between frontend and
-backend. The backend's AI integration is centered on a single `AIProvider` interface and one
-provider-selection factory (`createAIProvider`), so `analysisService`, `skepticReviewService`, and
-`postmortemService` never instantiate a concrete provider themselves and never need a second,
-feature-specific way to pick one. Persistence is an in-memory repository behind an interface, chosen
-deliberately so a real database could be substituted later without touching calling code — this
-project's own honest scope did not include building one. Full details, including the redaction flow,
-the validation/repair pipeline, and every human-in-the-loop review point, are in
+shared Zod-schema layer (`shared/`) that is the single source of truth for every domain shape, so
+request/response/domain types can never drift between frontend and backend. AI integration is
+centered on one `AIProvider` interface and one provider-selection factory (`createAIProvider`), so no
+service ever instantiates a concrete provider itself. Persistence is an in-memory repository behind
+an interface, deliberately chosen so a real database could later be substituted without touching
+calling code — building one was outside this project's honest scope. Full details are in
 `docs/architecture.md`.
 
 ## 5. Main Features
@@ -85,15 +81,14 @@ inferred TypeScript types on both sides of the stack.
 ## 7. Incident Data and Sample Scenarios
 
 The application ships six entirely synthetic, deliberately ambiguous sample incidents: an e-commerce
-checkout failure following a deployment, a course-registration slowdown during a traffic spike, a
-mobile-login failure during a signing-key rotation, a database connection leak, a payment-gateway
-timeout, and an async-queue backlog. Each has 8 or more evidence items mixing a plausible technical
+checkout failure, a course-registration slowdown, a mobile-login failure, a database connection leak,
+a payment-gateway timeout, and an async-queue backlog. Each has 8+ evidence items mixing a plausible
 cause, at least one genuine red herring, and evidence that both supports and challenges the leading
 explanation, so no single log line gives away "the answer." Every scenario has a matching, tested
-evaluation fixture recording its expected facts, at least three plausible hypotheses (including a
-deliberate, evidence-contradicted decoy), which evidence should challenge the leading explanation,
-distracting and missing-information evidence, and expected reasoning risks — turning "this scenario
-is genuinely ambiguous" from an assertion into something a test suite actually checks.
+evaluation fixture recording expected facts, at least three plausible hypotheses (including an
+evidence-contradicted decoy), challenging/distracting/missing-information evidence, and expected
+reasoning risks — turning "genuinely ambiguous" from an assertion into something a test actually
+checks.
 
 ## 8. How AI Is Used
 
@@ -121,22 +116,37 @@ safety rules, and version-to-version changes — are documented in `docs/prompts
 `v1` was the original analysis prompt. Real-provider testing against OpenAI in an earlier development
 session found genuine gaps: every hypothesis across all three tested scenarios came back with an
 empty contradicting-evidence list, and `reasoningRisks` came back completely empty in all three runs
-despite the prompt requiring it. `v2` was written specifically to target these two gaps — it
-instructs the model to actively search for contradicting evidence as a separate, explicit step for
-each hypothesis, to state explicitly when none is found after looking, and to ground reasoning risks
-in the specific incident's own evidence rather than returning nothing. `v1` was deliberately preserved
-unchanged (not deleted or edited in place) specifically so a prompt-comparison experiment can compare
-the two directly.
+despite the prompt requiring it. `v2` was written to target these two gaps specifically: it instructs
+the model to actively search for contradicting evidence as a separate, explicit step for each
+hypothesis, to state explicitly when none is found after looking, and to ground reasoning risks in
+the specific incident's own evidence rather than returning nothing. `v1` was deliberately preserved
+unchanged so a controlled comparison could be run later.
 
-A subsequent, limited real-provider verification (`docs/experiments/real-openai-v2-verification/`,
-detailed in Section 19) confirmed `v2` in isolation — not a head-to-head `v1`-vs-`v2` comparison —
-against one real OpenAI call on one scenario: the model's first response still reproduced the exact
-`v1` regression (empty reasoning risks, empty contradicting evidence on every hypothesis), and the
-targeted completion-repair pass then measurably improved both, though not completely. Whether `v2`
-is actually *better than `v1`* in a controlled, real-provider, head-to-head comparison remains
-unverified — `docs/experiments/prompt-comparison/latest.json` still honestly records that specific
-comparison as `"not-run"`, since the verification performed was of `v2` alone, not a paired
-comparison against `v1`.
+**A controlled `v1`-vs-`v2` comparison, plus a prompt-sensitivity test, were completed as real OpenAI
+calls** (`docs/experiments/reflective-report-completion/`, 2026-07-24, `sample-db-connection-leak`,
+`gpt-4o-mini`, same repair-eligible pipeline for every leg): one new real `v1` call, one new real call
+using a `v2` variant instructed to "argue against the first apparent cause" before ranking hypotheses,
+and the already-saved real `v2` call reused as the third leg. Results, in full in
+`docs/experiments/reflective-report-completion/comparison.md`:
+
+- **Contradicting evidence:** identical in all three -- 0 of 3 hypotheses populated in every raw
+  response, 2 of 3 after repair in every final result. `v2`'s stronger instruction did not produce a
+  different outcome than `v1` here, once completion repair is applied to both.
+- **Reasoning risks:** *not* consistent. `v2`'s raw response reproduced the documented empty-array
+  regression again; `v1`'s raw response had 1 finding, and the sensitivity variant's had 2 -- the
+  opposite of what `v2` was designed to improve, in this one-call sample. This shows the regression is
+  not deterministic even for the same prompt, and that a single real call cannot reliably distinguish
+  the prompts on this criterion.
+- **Leading hypothesis:** identical across all three (the traffic-increase explanation), despite the
+  sensitivity variant's explicit instruction to argue against the obvious cause first.
+- **Everything else** (facts, assumptions, supporting evidence, recommended actions, unknown
+  references, certainty language) was indistinguishable across all three.
+
+**Honest conclusion:** this data does not support a claim that `v2` measurably outperforms `v1`, and
+this report does not make that claim. The prompt-sensitivity variant changed the model's *raw*
+reasoning content (more reasoning risks, more detailed confidence explanations) without changing its
+final leading conclusion. Both results are one real call per version on one scenario -- not
+statistically representative, and stated as such rather than overstated.
 
 ## 11. Evidence Validation and Unsupported Claims
 
@@ -194,42 +204,62 @@ concrete falsification condition, and recommend further concrete tests. It is pe
 separate record and never overwrites the original analysis run. The backend — not the model —
 determines which hypothesis is leading and which evidence the original run never cited, and supplies
 both directly in the prompt, removing an entire class of possible mismatch between what the model is
-asked to critique and what it actually critiques. A prior development session verified this workflow
-producing real, working output against OpenAI, though that specific real output was not saved as a
-committed example — the example artifact in `examples/example-skeptic-review-output.json` is honestly
-labeled as mock-provider output instead. Experiment D in `docs/experiments/` scores a skeptic review
-against six fixed, mechanically-checkable criteria derived directly from the prompt's own stated
-rules, and is meaningful even in mock-only mode since the mock provider's skeptic-review logic is a
-genuine, non-trivial function of the run being reviewed.
+asked to critique and what it actually critiques. Three distinct kinds of skeptic-review evidence now
+exist in this repository, clearly labeled and never conflated: a **real, saved OpenAI skeptic-review
+artifact** (`docs/experiments/real-openai-v2-verification/skeptic-review-result.json`, 2026-07-24 --
+see Section 19 for its findings); a **deterministic mock example**
+(`examples/example-skeptic-review-output.json`), explicitly labeled as mock-provider output, kept for
+schema illustration, never presented as real-model output; and **automated mock-provider testing**
+(Experiment D, `docs/experiments/`), which scores a skeptic review against six fixed,
+mechanically-checkable criteria derived from the prompt's own stated rules and is meaningful in
+mock-only mode since the mock provider's skeptic-review logic is a genuine, non-trivial function of
+the run being reviewed.
 
 ## 16. Biases and Logical Fallacies
 
-The system recognizes eight reasoning-risk types. Six are deterministically demonstrable through the
-mock provider's evidence-grounded heuristics: confirmation bias (a hypothesis with no contradicting
-evidence), anchoring bias (evidence predating the incident's recorded start), automation bias (an
-honest, always-present disclosure that mock output is a placeholder), the post-hoc fallacy
-(deployment evidence present, timing alone is not proof), availability bias (one evidence source type
-dominating), and base-rate neglect (very little total evidence). Two — overconfidence bias and
-hindsight bias — have no corresponding mock heuristic and are documented as an honest gap rather than
-silently omitted. Real-provider testing under `v1` returned zero reasoning-risk findings across all
-three tested scenarios, a fact stated plainly rather than glossed over. A real `v2` verification run
-(Section 19) reproduced the same empty result on the model's first response, then, after the
-targeted completion-repair pass, produced exactly one relevant, evidence-grounded finding
-(confirmation bias, tied to the deploy-timing assumption, with a concrete mitigation) — a genuine
-improvement from zero, but only one of up to four biases the evaluation fixture identifies as
-plausible for that scenario, and from a single real call, not a statistically representative sample.
-Full detail, including a concrete sample-scenario example for each of the six, is in
+The system's schema recognizes eight reasoning-risk types. This section reflects on five as genuine
+human/AI reasoning risks encountered while building and testing this project against
+`sample-db-connection-leak` -- not only as mock-provider implementation heuristics. The real finding
+that `v2`'s first raw OpenAI response had **zero** reasoning risks, and that the completion-repair
+pass then produced exactly **one** relevant confirmation-bias finding, is preserved below and in
+Section 19; full per-bias detail, including a worked example for each of six schema types, is in
 `docs/bias-and-fallacy-analysis.md`.
+
+| Bias / Fallacy | Where It Appeared | Effect on Our Thinking | How We Noticed It | How We Reduced Its Effect |
+| --- | --- | --- | --- | --- |
+| **Confirmation bias** | The deploy at 09:35 UTC correlates neatly with errors starting at 09:40 -- an easy story to settle on and stop questioning. | Risk of collecting evidence *for* the deploy explanation while never actively hunting for evidence against it. | A real OpenAI `v2` raw response left every hypothesis's `contradictingEvidenceIds` empty -- confirmation bias made concrete: support gathered, contradictions never sought. | Facts vs. Assumptions keeps the causal claim an Assumption, never a Fact; completion repair explicitly re-asks for contradicting evidence; Skeptic Review's `confirmationBiasAssessment` targets this directly. |
+| **Post-hoc fallacy** | Deploy at 09:35, errors at 09:40 -- five minutes apart, a classic "this, therefore because of this" trap. | Timing proximity alone can feel like causal proof, crowding out an equally valid alternative (the traffic increase). | All three real analysis calls (`v1`, `v2`, sensitivity variant) independently flagged this bias unprompted, citing the exact deploy/error evidence ids -- a real, evidence-grounded finding, not written for this report. | `v2`'s prompt explicitly forbids treating deployment timing alone as causation; the mock provider flags it whenever deployment evidence is present. |
+| **Anchoring bias** | Evidence `ev-10` ("this alert has fired before, unrelated to any deploy") is easy to skim past once the deploy narrative already feels settled. | The first plausible story anchors the whole investigation; later evidence gets under-weighted rather than evaluated fresh. | A design risk identified directly, not one a real call happened to name for this scenario. | The mock heuristic flags evidence timestamped before the incident's recorded start; every citation is a clickable chip so no item is easy to silently skip. |
+| **Base-rate neglect** | The same alert had fired 3-4 times before over two months, always self-resolving -- easy to discount in favor of a specific, current-feeling cause. | A routine, previously self-resolving alert can get treated as a novel emergency needing a specific root cause. | Deliberately built into the scenario's evidence and evaluation fixture, to test whether an investigation accounts for it. | The mock provider flags base-rate neglect on sparse evidence; every scenario's evaluation fixture requires a base-rate/missing-information element to be present and checked by the test suite. |
+| **Automation bias** | Every screen presenting AI output, including the deterministic mock provider's. | Trusting a conclusion because a tool produced it, without the scrutiny a colleague's opinion would get. | This risk motivated `MockAIProvider`'s design choice to always disclose "this is mock output" as its own finding, before any real call was ever made. | Provider/model/prompt-version metadata on every result; the Facts/Assumptions/Unsupported-Claims split; the human-only `confirmed-by-human` status the AI can never set itself. |
+
+**Remaining limitations, stated honestly:** none of the three real OpenAI calls in this project
+explicitly named base-rate-neglect for this scenario despite the trap being present -- a real gap,
+not glossed over. The completion-repair pass improved contradicting evidence for 2 of 3 hypotheses,
+never 3 of 3, in every real run tested. No mechanism can force a human reviewer to actually act on a
+flagged anchoring or automation-bias risk -- the tool surfaces these, but responsibility to act on
+them remains human (Section 22).
 
 ## 17. Useful AI Outputs
 
-Even from the deterministic mock provider, AI-generated output proved genuinely useful for
-structuring an investigation: grouping evidence into coherent hypothesis clusters, generating
-concrete, evidence-linked recommended actions instead of generic advice ("check the logs" is
-explicitly rejected by the quality gate and by `v2`'s own prompt instructions), and producing a
-usable first-draft postmortem that still required human editing but saved the blank-page problem.
-The skeptic review's structural approach — always asking "what would falsify this?" — proved useful
-as a repeatable discipline independent of which specific incident it was applied to.
+Concrete, verified examples from the real OpenAI verification
+(`docs/experiments/real-openai-v2-verification/`), not general description: the model correctly kept
+"the deploy caused the connection-pool exhaustion" as an **Assumption**, never promoting it to a
+Fact, despite the tempting timing correlation. All three accepted Facts cited valid evidence ids, with
+zero unsupported claims. The final analysis produced three concrete, non-generic Recommended Actions
+(e.g. analyzing per-request connection-hold-time metrics against a named hypothesis, not "check the
+logs"). The real Skeptic Review challenged the leading hypothesis substantively, proposed three
+plausible alternatives (including a base-rate-neglect angle -- "this has happened before without a
+deploy"), identified a concrete falsification test, and correctly cited four ignored evidence ids the
+original analysis never referenced. Each of these was genuinely useful to an engineer reading the
+output: they point at exactly what to check next, not generic advice, and the Assumption/Fact split
+tells a reader precisely how much to trust each claim before acting on it.
+
+The deterministic **mock provider** (never genuinely AI-generated -- labeled as such throughout this
+report) was separately useful as a free, reproducible testing aid: grouping evidence into coherent
+hypothesis clusters, generating concrete evidence-linked actions for automated tests, and producing a
+usable first-draft postmortem structure. It is discussed here only as infrastructure, not as evidence
+of AI reasoning quality.
 
 ## 18. Incorrect, Incomplete, Misleading, or Overconfident AI Outputs
 
@@ -254,26 +284,33 @@ one hypothesis still ended with no contradicting evidence despite relevant evide
 This is reported honestly as a partial, not complete, improvement, based on a single real call on a
 single scenario.
 
+The follow-up `v1`-vs-`v2`-vs-sensitivity comparison (Section 10,
+`docs/experiments/reflective-report-completion/`) sharpens this picture rather than resolving it:
+whether the raw response improved under `v2` depended entirely on which specific real call happened
+to run -- `v2`'s raw response had the fewest reasoning risks (zero) of the three versions tested, and
+the improvement that did occur (contradicting evidence on 2 of 3 hypotheses) came from completion
+repair identically in all three versions, not from the prompt wording itself. The small "argue
+against the first cause" variation changed the model's raw reasoning content but not its final
+leading conclusion. **`v2` is not shown to be more effective than `v1` by this data** -- the honest
+finding is that improvement depended mainly on the completion-repair pass, not on the prompt version,
+and one hypothesis remained uncontested in every version tested.
+
 ## 19. Critical AI Experiments
 
 A repeatable, safe experiment framework (`npm run ai:experiment`, `server/src/experiments/`) supports
 four experiments: prompt comparison (`v1` vs. `v2`), provider comparison (mock vs. real), prompt
-sensitivity (the standard `v2` prompt vs. a variant instructing the model to argue against the most
-obvious apparent cause), and skeptic-review quality against six fixed criteria. It never runs as part
-of the automated test suite and makes a real, billable provider call only when explicitly enabled
-(`RUN_REAL_AI_EXPERIMENTS=true`, a configured key, `--real`/`--provider` flags, and explicit
-approval showing the exact call count) — otherwise it completes entirely in mock-only mode. Because
-the mock provider deliberately ignores prompt text (its output is derived purely from an incident's
-evidence, by design, so it is fast, free, and deterministic for testing), the prompt-comparison and
-prompt-sensitivity experiments are **not meaningful** in mock-only mode; they still run a "pipeline
-check" leg proving the schema/validation machinery works for every prompt version, but the actual
-comparison is honestly recorded as `"not-run"` in the results currently committed under
-`docs/experiments/`, because no real-provider call was made during this compliance-closure pass. The
-provider-comparison experiment's mock leg, and the skeptic-review-evaluation experiment (which is
-meaningful without a real provider, since the mock skeptic review is a genuine function of the run
-being reviewed), both completed and produced real, saved results. This honesty distinction — mock
-pipeline validity is not the same claim as a real comparison — is treated as a hard rule throughout
-this project, not a minor caveat.
+sensitivity (standard `v2` vs. an "argue against the obvious cause" variant), and skeptic-review
+quality against six fixed criteria. It never runs as part of the automated test suite and makes a
+real, billable call only when explicitly enabled (`RUN_REAL_AI_EXPERIMENTS=true`, a configured key,
+`--real`/`--provider` flags, explicit approval) — otherwise it runs entirely mock-only. Since the mock
+provider ignores prompt text by design, its prompt-comparison and prompt-sensitivity legs are **not
+meaningful** in mock-only mode. The **CLI framework's own** Experiment A/C legs still honestly record
+`"not-run"` — they have not been re-run with `--real`. A real `v1`-vs-`v2` comparison and
+prompt-sensitivity test **were** completed via a separate, standalone script exercising the same
+pipeline directly (see the subsection below). The provider-comparison mock leg and the
+skeptic-review-evaluation experiment (meaningful without a real provider) both produced real, saved
+results. This distinction — mock pipeline validity is not a real comparison — is a hard rule
+throughout this project.
 
 ### Real OpenAI verification of `v2` (`docs/experiments/real-openai-v2-verification/`)
 
@@ -310,49 +347,70 @@ either is. Full saved evidence, including the raw pre-repair response for direct
 `docs/experiments/real-openai-v2-verification/` — see that directory's `evaluation.md` for the
 complete, criterion-by-criterion breakdown.
 
+### Real prompt comparison and prompt-sensitivity test (`docs/experiments/reflective-report-completion/`)
+
+A controlled `v1`-vs-`v2` comparison and a prompt-sensitivity test were completed as real OpenAI
+calls, using the same scenario, model, and repair-eligible pipeline as the verification above: one
+new real `v1` call (2 real requests: initial + completion-repair) and one new real call using a `v2`
+variant instructed to argue against the first apparent cause before ranking hypotheses (2 real
+requests), reusing the existing `v2` result as the third leg rather than duplicating it. Summarized
+in Section 10; full criterion-by-criterion detail, including the honest conclusion that this data
+does not show `v2` outperforming `v1`, is in
+`docs/experiments/reflective-report-completion/comparison.md`.
+
 ## 20. Problems Encountered and Solutions
 
-Several concrete engineering problems came up during this compliance-closure work. Introducing the
-targeted completion-repair pass initially broke dozens of existing tests because a shared test
-fixture's default response had an empty `reasoningRisks` array, triggering an unwanted extra repair
-call in every test using it — solved by giving the fixture a non-empty default and adding an explicit
-override parameter for the specific tests that needed an empty case. A redaction unit test
-unexpectedly matched two different redaction rules at once due to regex word-boundary behavior around
-an underscore-prefixed key name — solved by choosing a test input where only the intended rule's
-boundary condition held. A CSV-validation bug filtered out an intentionally blank header row before
-the emptiness check could run, because the blank-row filter was applied to all rows including the
-header instead of only the data rows — solved by extracting headers unconditionally before filtering.
-Building the evaluation fixtures for the three original sample incidents required first recognizing
-that none of their evidence had a null/approximate timestamp, which the shared fixture test suite
-requires at least one of — solved by adding two new, deliberately null-timestamp evidence items
-(a "prior occurrences, not tracked" note and an "observability gap" note) to each of the three
-original incidents, mirroring the pattern already used by the three newer scenarios, rather than
-weakening the shared test suite's requirement.
+Several concrete engineering problems came up during this project. Introducing the targeted
+completion-repair pass broke dozens of existing tests because a shared test fixture's default
+response had an empty `reasoningRisks` array, triggering an unwanted extra repair call in every test
+using it — solved by giving the fixture a non-empty default plus an explicit override for tests that
+specifically needed an empty case. A redaction unit test matched two different redaction rules at
+once due to regex word-boundary behavior around an underscore-prefixed key name — solved by choosing
+a test input where only the intended rule's boundary condition held. A CSV-validation bug filtered
+out an intentionally blank header row before the emptiness check could run — solved by extracting
+headers unconditionally before filtering data rows. Building evaluation fixtures for the three
+original sample incidents required recognizing none of their evidence had a null/approximate
+timestamp, which the shared fixture test suite requires — solved by adding two deliberately
+null-timestamp evidence items to each, mirroring the pattern already used by the newer scenarios,
+rather than weakening the test suite's requirement.
+
+### Lessons Learned
+
+- Valid JSON is not the same as high-quality reasoning -- a schema-valid response can still have
+  empty reasoning risks and no contradicting evidence, which is exactly what real testing found.
+- Schema validation cannot detect every meaningful omission; a provider-independent quality gate and
+  a separate, targeted repair pass were needed to catch and address completeness, not just structure.
+- A model can satisfy structure while omitting self-critical content -- the two failures are
+  different and need different mechanisms, not one bigger schema.
+- Real-provider testing is necessary because mock success proves nothing about real-model behavior --
+  every automated test passed throughout this project while the real regressions this report
+  documents were still present.
+- Prompt wording alone cannot guarantee complete reasoning: the real `v1`-vs-`v2` comparison (Section
+  10) found the stronger `v2` instructions did not reliably outperform `v1` in a single-call sample.
+- Human review remains necessary even after every automated safeguard here -- confirmation bias,
+  anchoring, and automation bias are risks the system can surface but never fully close on its own.
 
 ## 21. Privacy, Security, and Redaction
 
 Before any request reaches a real AI provider, its prompt passes through a redaction step that
-returns a brand-new, redacted copy — the original prompt object, and the incident evidence it was
-built from, are never mutated, so everything stored locally and shown in the UI remains the original
-text. Detected categories include email addresses, bearer tokens, well-known API-key prefixes,
-several kinds of labeled secret key-value pairs, authorization headers, cookie values, and
-card-number-shaped digit runs. Only safe, aggregate metadata (whether redaction applied, how many
-values, which categories) is ever recorded — never the removed values themselves — and the mock
-provider never redacts at all, since nothing it does leaves the process. This is explicitly
-documented as a prototype-level safeguard against common accidental leaks, not a production
-data-loss-prevention system: it cannot do named-entity recognition, cannot understand semantic
-context, and cannot catch a secret in a shape it was not written to recognize.
+returns a brand-new, redacted copy — the original prompt and evidence are never mutated, so local
+storage and the UI always show the original text. Detected categories include email addresses,
+bearer tokens, well-known API-key prefixes, labeled secret key-value pairs, authorization headers,
+cookie values, and card-number-shaped digit runs. Only safe, aggregate metadata (whether redaction
+applied, how many values, which categories) is ever recorded — never the removed values — and the
+mock provider never redacts at all, since nothing it does leaves the process. This is explicitly
+documented as a prototype-level safeguard, not production DLP: no named-entity recognition, no
+semantic context, no catching a secret in a shape it wasn't written to recognize.
 
 ## 22. Ethical and Professional Risks
 
-Beyond the technical redaction mechanism, this project documents (in `docs/ethical-and-professional-risks.md`)
-its position on over-trust risk, why the system is designed to never let AI output claim a definitive
-root cause, how uncertainty is communicated (confidence scores paired with reasons, a mandatory
-uncertainty statement, and independent timestamp-type/inferred labeling), and who bears
-responsibility if a user acts on a harmful AI recommendation without applying their own judgment. The
-honest position taken throughout is that software design can make good practice easy and bad practice
-visible, but cannot fully prevent a team from ignoring both — a governance question no single
-application can resolve by itself.
+`docs/ethical-and-professional-risks.md` documents this project's position on over-trust risk, why
+the system never lets AI output claim a definitive root cause, how uncertainty is communicated
+(confidence scores paired with reasons, a mandatory uncertainty statement, independent
+timestamp-type/inferred labeling), and who bears responsibility if a user acts on a harmful
+recommendation without applying their own judgment. The honest position taken throughout: software
+design can make good practice easy and bad practice visible, but cannot fully prevent a team from
+ignoring both — a governance question no application can resolve by itself.
 
 ## 23. Human Judgment and Responsibility
 
@@ -365,35 +423,40 @@ investigative step for a human to read, evaluate, and choose to act on or not.
 
 ## 24. Testing and Quality Assurance
 
-The project has 858 automated tests (709 backend, 149 frontend) — this compliance-closure pass alone
-added coverage for unsupported-fact handling, the `v2` prompt and completion-repair pass, the human
+The project has **890 automated tests** (709 backend, 181 frontend), verified by actually running
+`npm run test` while finalizing this report, not carried forward from an earlier count. Coverage
+spans unsupported-fact handling, the `v2` prompt and completion-repair pass, the human
 hypothesis-review workflow end to end, redaction (per category, both real providers), file-upload
-hardening, timeline sorting/plausibility, evaluation fixtures for all six sample incidents, and the
-critical-AI-experiment framework's pure logic. Both real providers (`AnthropicAIProvider`,
-`OpenAIProvider`) have dedicated unit-test suites against a mocked SDK client covering the full
-authentication/rate-limit/quota/network/timeout/refusal failure taxonomy; the regular automated suite
-makes no real network calls and needs no API key. See Section 10 of `docs/requirements-compliance-closure.md`
-for the exact final test/build/lint results of this pass.
+hardening (including client-side content validation, not just extension/size), timeline
+sorting/plausibility, evaluation fixtures for all six sample incidents, and the critical-AI-experiment
+framework's pure logic. Both real providers (`AnthropicAIProvider`, `OpenAIProvider`) have dedicated
+unit-test suites against a mocked SDK client covering the full authentication/rate-limit/quota/
+network/timeout/refusal failure taxonomy; the regular automated suite makes no real network calls and
+needs no API key, whether or not a real-provider verification has been run separately.
 
 ## 25. Known Limitations
 
 No real database — all data is lost on backend restart. No authentication or authorization — this is
-a single-tenant prototype. No component-level frontend test suite (no React Testing Library
-installed). Real-provider verification exists only for OpenAI, not Anthropic. Two of the eight
-reasoning-risk types have no mock heuristic. Redaction is prototype-level, not production DLP. The
-prompt-comparison and prompt-sensitivity experiments require a real provider to be meaningful and have
-not been re-run with one during this pass. The demo video has not yet been recorded. A complete,
+a single-tenant prototype. No component-level frontend test suite — confirmed by inspecting current
+dependencies while finalizing this report: no React Testing Library, jsdom, or equivalent is
+installed anywhere in the repository, so this remains an accurate, current limitation, not a stale
+one. Real-provider verification exists only for OpenAI, not Anthropic. Two of the eight reasoning-risk
+types have no mock heuristic. Redaction is prototype-level, not production DLP. The `v1`-vs-`v2` and
+prompt-sensitivity comparisons have now been run once each with a real provider (Section 10) — but on
+a single scenario with a single call per version, so they remain a limited, non-statistically-
+representative sample, not a settled comparison. The demo video has not yet been recorded. A complete,
 itemized list is in the README's "Known limitations" section and `docs/requirements-compliance-closure.md`.
 
 ## 26. Future Improvements
 
-The most valuable next step is re-running the critical-AI-experiment framework with a real OpenAI (and
-ideally Anthropic) key to obtain genuine `v1`-vs-`v2` and mock-vs-real comparison data, since that is
-the one piece of evidence this project's own honesty standard requires but does not yet have for the
-current prompt version. Beyond that: a real persistence layer, authentication/authorization for
-multi-user use, a production-grade redaction/DLP integration, component-level frontend tests, and
-mock heuristics (or documented real-provider evidence) for the two currently-undemonstrated bias
-types.
+The most valuable next step is repeating the `v1`-vs-`v2` and prompt-sensitivity real-provider
+comparisons across multiple calls and multiple scenarios, since the single-call, single-scenario
+sample completed for this report (Section 10) is not statistically representative and left the
+question of whether `v2` reliably outperforms `v1` genuinely open. A real Anthropic verification (only
+OpenAI has been tested with a real call) would close a second documented gap. Beyond that: a real
+persistence layer, authentication/authorization for multi-user use, a production-grade
+redaction/DLP integration, component-level frontend tests, and mock heuristics (or documented
+real-provider evidence) for the two currently-undemonstrated bias types.
 
 ## 27. Division of Work
 
