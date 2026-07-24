@@ -225,6 +225,8 @@ pass then produced exactly **one** relevant confirmation-bias finding, is preser
 Section 19; full per-bias detail, including a worked example for each of six schema types, is in
 `docs/bias-and-fallacy-analysis.md`.
 
+<!-- docx-page-break-before: keeps the table header and its first data row together on one page -->
+
 | Bias / Fallacy | Where It Appeared | Effect on Our Thinking | How We Noticed It | How We Reduced Its Effect |
 | --- | --- | --- | --- | --- |
 | **Confirmation bias** | The deploy at 09:35 UTC correlates neatly with errors starting at 09:40 -- an easy story to settle on and stop questioning. | Risk of collecting evidence *for* the deploy explanation while never actively hunting for evidence against it. | A real OpenAI `v2` raw response left every hypothesis's `contradictingEvidenceIds` empty -- confirmation bias made concrete: support gathered, contradictions never sought. | Facts vs. Assumptions keeps the causal claim an Assumption, never a Fact; completion repair explicitly re-asks for contradicting evidence; Skeptic Review's `confirmationBiasAssessment` targets this directly. |
