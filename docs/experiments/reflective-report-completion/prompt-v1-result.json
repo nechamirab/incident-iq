@@ -1,0 +1,248 @@
+{
+  "id": "run-442b88b3-3962-4b7b-b1e9-63c30b6822e1",
+  "incidentId": "sample-db-connection-leak",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "promptVersion": "incident-analysis-v1",
+  "createdAt": "2026-07-24T09:36:47.304Z",
+  "inputHash": "22e17216f7716388a6f629605885ed86f5d0693f0d89b3924d296f4e28c0f4d7",
+  "durationMs": 18533,
+  "configuredProvider": "openai",
+  "fallbackUsed": false,
+  "fallbackReason": null,
+  "providerRequestId": "resp_094c37f307a494b4006a6331f83f7c819d8db285d5abf1db17",
+  "completionRepairAttempted": true,
+  "completionRepairedSections": [
+    "hypotheses"
+  ],
+  "qualityWarnings": [],
+  "status": "completed",
+  "summary": {
+    "text": "The orders-service has been experiencing high error rates due to database connection-pool exhaustion, likely caused by increased traffic and potential connection handling issues introduced by a recent deployment.",
+    "affectedComponents": [
+      "orders-service",
+      "orders-db"
+    ],
+    "impact": "High"
+  },
+  "timeline": [
+    {
+      "id": "timeline-4a460989-e04a-4698-bec3-c5a750854115",
+      "timestamp": "2026-07-15T09:35:00Z",
+      "title": "Deployment of orders-service v5.2.0",
+      "description": "orders-service deployed v5.2.0 which included a refactor of repository layer managing database connections.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-02"
+      ],
+      "timestampType": "exact",
+      "confidence": 90,
+      "isInferred": false
+    },
+    {
+      "id": "timeline-680ecdd7-522c-4b65-870b-25e7b752310c",
+      "timestamp": "2026-07-15T09:40:00Z",
+      "title": "Error rates begin to increase",
+      "description": "orders-service starts returning 500 errors, logs indicate database connection-pool exhaustion.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-01"
+      ],
+      "timestampType": "exact",
+      "confidence": 90,
+      "isInferred": false
+    },
+    {
+      "id": "timeline-66556b15-dc0d-4398-ae1b-cc1e94af7505",
+      "timestamp": "2026-07-15T10:05:00Z",
+      "title": "Connection-pool utilization at 100%",
+      "description": "Monitoring alerts show connection-pool utilization reached 100% and remained high.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-03"
+      ],
+      "timestampType": "exact",
+      "confidence": 90,
+      "isInferred": false
+    }
+  ],
+  "facts": [
+    {
+      "id": "reasoning-dc444f66-38cd-4fcc-b2ae-3c8056b38c61",
+      "category": "fact",
+      "statement": "Orders-service returned 500 errors starting at 09:40 UTC.",
+      "explanation": "This aligns with the timing of connection pool exhaustion logs.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-01"
+      ],
+      "confidence": 90,
+      "reviewStatus": "unreviewed"
+    },
+    {
+      "id": "reasoning-6f21d5c2-746d-4305-8cee-23145becc31f",
+      "category": "fact",
+      "statement": "Connection-pool utilization climbed steadily from 42% to 100% from 09:40 to 10:05 UTC.",
+      "explanation": "The monitoring indicates a gradual rise in utilization, consistent with increased demand.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-03"
+      ],
+      "confidence": 85,
+      "reviewStatus": "unreviewed"
+    },
+    {
+      "id": "reasoning-f5eb1b48-a0d6-46cf-9a37-3db85e938ec5",
+      "category": "fact",
+      "statement": "A promotional campaign increased orders-service request volume by 35% starting at 09:30 UTC.",
+      "explanation": "This correlates with the timing of increased errors.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-04"
+      ],
+      "confidence": 85,
+      "reviewStatus": "unreviewed"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "reasoning-3fc678a1-f230-4b97-a725-b3a11d6eca19",
+      "category": "assumption",
+      "statement": "The recent deployment may have introduced connection handling issues.",
+      "explanation": "The logging behavior changed post-deployment, indicating potential changes in connection management.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-07"
+      ],
+      "confidence": 70,
+      "reviewStatus": "unreviewed"
+    },
+    {
+      "id": "reasoning-e8af93eb-708b-4cb7-b86f-c44ef05aeb62",
+      "category": "assumption",
+      "statement": "The intermittent nature of the errors could mean that they are exacerbated by the promotional campaign.",
+      "explanation": "Errors were reported inconsistently, which may connect with the volume of requests.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-09"
+      ],
+      "confidence": 70,
+      "reviewStatus": "unreviewed"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "hypothesis-57bc810b-c99f-4ebc-b932-929eddab2a4e",
+      "title": "Increased Traffic from Marketing Campaign",
+      "description": "The increase in request volume due to the marketing campaign caused the connection-pool exhaustion.",
+      "confidence": 85,
+      "confidenceReason": "Traffic increased significantly prior to the errors starting, aligned with connection-pool utilization data.",
+      "supportingEvidenceIds": [
+        "sample-db-connection-leak-ev-04",
+        "sample-db-connection-leak-ev-03"
+      ],
+      "contradictingEvidenceIds": [
+        "sample-db-connection-leak-ev-10"
+      ],
+      "assumptions": [],
+      "recommendedTest": "Simulate a similar traffic pattern in a controlled environment to observe connection-pool behavior.",
+      "expectedResult": "Identifying if the connection pool can be managed effectively under increased traffic.",
+      "status": "proposed"
+    },
+    {
+      "id": "hypothesis-80d92338-e12c-4f49-8c01-9aaca408cc6b",
+      "title": "Connection Handling Changes in Deployment",
+      "description": "The recent deployment introduced changes to how database sessions are managed, leading to connection leaks.",
+      "confidence": 70,
+      "confidenceReason": "Changes in session handling might result in connections not being released appropriately, affecting the pool.",
+      "supportingEvidenceIds": [
+        "sample-db-connection-leak-ev-02",
+        "sample-db-connection-leak-ev-07"
+      ],
+      "contradictingEvidenceIds": [
+        "sample-db-connection-leak-ev-11"
+      ],
+      "assumptions": [],
+      "recommendedTest": "Review and analyze connection handling code introduced in the deployment for potential connection leaks.",
+      "expectedResult": "Determine if modifications to session handling lead to connection retention.",
+      "status": "proposed"
+    },
+    {
+      "id": "hypothesis-2bc99e08-a8bb-4297-a16e-acee4ff98710",
+      "title": "Environmental Factors Affecting DB",
+      "description": "External factors such as other database queries or operations may be impacting the availability of connection slots.",
+      "confidence": 50,
+      "confidenceReason": "The autovacuum process could contribute to higher wait times, but is not definitive evidence.",
+      "supportingEvidenceIds": [
+        "sample-db-connection-leak-ev-08"
+      ],
+      "contradictingEvidenceIds": [],
+      "assumptions": [],
+      "recommendedTest": "Analyze the performance of the database during the incident period to check for external impacts.",
+      "expectedResult": "Identify any background processes that might contribute to connection resource contention.",
+      "status": "proposed"
+    }
+  ],
+  "reasoningRisks": [
+    {
+      "id": "bias-87ca587f-76d0-4044-b592-f08eb8d91f56",
+      "biasType": "post-hoc-fallacy",
+      "title": "Mistaking Correlation for Causation",
+      "description": "Assuming that the recent deployment directly caused the connection issues due to timing.",
+      "detectedIn": "Hypotheses regarding deployment leading to connection handling changes.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-01",
+        "sample-db-connection-leak-ev-02"
+      ],
+      "riskLevel": "medium",
+      "mitigation": "Focus on establishing a clear causative link through testing or analysis."
+    }
+  ],
+  "recommendedActions": [
+    {
+      "id": "action-22e45e18-7bfe-45f8-af88-330aa741257f",
+      "title": "Simulate Traffic Load",
+      "description": "Implement a controlled test that simulates the request volume from the marketing campaign to analyze connection-pool behavior.",
+      "priority": "high",
+      "category": "reproduce",
+      "relatedHypothesisIds": [
+        "hypothesis-57bc810b-c99f-4ebc-b932-929eddab2a4e"
+      ],
+      "evidenceIds": [],
+      "expectedOutcome": "Observe whether similar exhaustion patterns occur under simulated loads.",
+      "risk": "Potential to overload the system if not managed carefully.",
+      "status": "suggested"
+    },
+    {
+      "id": "action-19ac010b-0560-4fe9-a253-f32081e9dde9",
+      "title": "Code Review of Session Management",
+      "description": "Conduct a thorough review of the changes related to database session handling introduced in the recent deployment.",
+      "priority": "high",
+      "category": "code-review",
+      "relatedHypothesisIds": [
+        "hypothesis-80d92338-e12c-4f49-8c01-9aaca408cc6b"
+      ],
+      "evidenceIds": [],
+      "expectedOutcome": "Identify any changes that may lead to connections not being released properly.",
+      "risk": "Time-consuming, could delay resolution.",
+      "status": "suggested"
+    },
+    {
+      "id": "action-71e45c46-2f39-4778-a985-fc08987e56f9",
+      "title": "Review Database Load During Incident",
+      "description": "Analyze database logs and metrics during the incident to ascertain potential external factors affecting connections.",
+      "priority": "medium",
+      "category": "collect-evidence",
+      "relatedHypothesisIds": [
+        "hypothesis-2bc99e08-a8bb-4297-a16e-acee4ff98710"
+      ],
+      "evidenceIds": [],
+      "expectedOutcome": "Determine if autovacuum or other processes impacted connection availability.",
+      "risk": "Identifying external causes may not lead to immediate solutions.",
+      "status": "suggested"
+    }
+  ],
+  "openQuestions": [
+    "What were the exact connection hold times for requests during the incident?",
+    "Is there any historical context for the connection-utilization spikes recorded previously?"
+  ],
+  "unsupportedClaims": [],
+  "uncertaintyStatement": "The conclusions drawn are based on available data and informed reasoning, but further investigation is necessary to validate these hypotheses.",
+  "validationWarnings": [],
+  "rawResponse": {
+    "rawText": "{\n  \"summary\": {\n    \"text\": \"The orders-service has been experiencing high error rates due to database connection-pool exhaustion, likely caused by increased traffic and potential connection handling issues introduced by a recent deployment.\",\n    \"affectedComponents\": [\"orders-service\", \"orders-db\"],\n    \"impact\": \"High\"\n  },\n  \"timeline\": [\n    {\n      \"timestamp\": \"2026-07-15T09:35:00Z\",\n      \"title\": \"Deployment of orders-service v5.2.0\",\n      \"description\": \"orders-service deployed v5.2.0 which included a refactor of repository layer managing database connections.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-02\"],\n      \"timestampType\": \"exact\",\n      \"confidence\": 90,\n      \"isInferred\": false\n    },\n    {\n      \"timestamp\": \"2026-07-15T09:40:00Z\",\n      \"title\": \"Error rates begin to increase\",\n      \"description\": \"orders-service starts returning 500 errors, logs indicate database connection-pool exhaustion.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-01\"],\n      \"timestampType\": \"exact\",\n      \"confidence\": 90,\n      \"isInferred\": false\n    },\n    {\n      \"timestamp\": \"2026-07-15T10:05:00Z\",\n      \"title\": \"Connection-pool utilization at 100%\",\n      \"description\": \"Monitoring alerts show connection-pool utilization reached 100% and remained high.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-03\"],\n      \"timestampType\": \"exact\",\n      \"confidence\": 90,\n      \"isInferred\": false\n    }\n  ],\n  \"facts\": [\n    {\n      \"statement\": \"Orders-service returned 500 errors starting at 09:40 UTC.\",\n      \"explanation\": \"This aligns with the timing of connection pool exhaustion logs.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-01\"],\n      \"confidence\": 90\n    },\n    {\n      \"statement\": \"Connection-pool utilization climbed steadily from 42% to 100% from 09:40 to 10:05 UTC.\",\n      \"explanation\": \"The monitoring indicates a gradual rise in utilization, consistent with increased demand.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-03\"],\n      \"confidence\": 85\n    },\n    {\n      \"statement\": \"A promotional campaign increased orders-service request volume by 35% starting at 09:30 UTC.\",\n      \"explanation\": \"This correlates with the timing of increased errors.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-04\"],\n      \"confidence\": 85\n    }\n  ],\n  \"assumptions\": [\n    {\n      \"statement\": \"The recent deployment may have introduced connection handling issues.\",\n      \"explanation\": \"The logging behavior changed post-deployment, indicating potential changes in connection management.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-07\"],\n      \"confidence\": 70\n    },\n    {\n      \"statement\": \"The intermittent nature of the errors could mean that they are exacerbated by the promotional campaign.\",\n      \"explanation\": \"Errors were reported inconsistently, which may connect with the volume of requests.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-09\"],\n      \"confidence\": 70\n    }\n  ],\n  \"hypotheses\": [\n    {\n      \"tempId\": \"H1\",\n      \"title\": \"Increased Traffic from Marketing Campaign\",\n      \"description\": \"The increase in request volume due to the marketing campaign caused the connection-pool exhaustion.\",\n      \"confidence\": 85,\n      \"confidenceReason\": \"Traffic increased significantly prior to the errors starting, aligned with connection-pool utilization data.\",\n      \"supportingEvidenceIds\": [\"sample-db-connection-leak-ev-04\", \"sample-db-connection-leak-ev-03\"],\n      \"contradictingEvidenceIds\": [],\n      \"assumptions\": [],\n      \"recommendedTest\": \"Simulate a similar traffic pattern in a controlled environment to observe connection-pool behavior.\",\n      \"expectedResult\": \"Identifying if the connection pool can be managed effectively under increased traffic.\"\n    },\n    {\n      \"tempId\": \"H2\",\n      \"title\": \"Connection Handling Changes in Deployment\",\n      \"description\": \"The recent deployment introduced changes to how database sessions are managed, leading to connection leaks.\",\n      \"confidence\": 70,\n      \"confidenceReason\": \"Changes in session handling might result in connections not being released appropriately, affecting the pool.\",\n      \"supportingEvidenceIds\": [\"sample-db-connection-leak-ev-02\", \"sample-db-connection-leak-ev-07\"],\n      \"contradictingEvidenceIds\": [],\n      \"assumptions\": [],\n      \"recommendedTest\": \"Review and analyze connection handling code introduced in the deployment for potential connection leaks.\",\n      \"expectedResult\": \"Determine if modifications to session handling lead to connection retention.\"\n    },\n    {\n      \"tempId\": \"H3\",\n      \"title\": \"Environmental Factors Affecting DB\",\n      \"description\": \"External factors such as other database queries or operations may be impacting the availability of connection slots.\",\n      \"confidence\": 50,\n      \"confidenceReason\": \"The autovacuum process could contribute to higher wait times, but is not definitive evidence.\",\n      \"supportingEvidenceIds\": [\"sample-db-connection-leak-ev-08\"],\n      \"contradictingEvidenceIds\": [],\n      \"assumptions\": [],\n      \"recommendedTest\": \"Analyze the performance of the database during the incident period to check for external impacts.\",\n      \"expectedResult\": \"Identify any background processes that might contribute to connection resource contention.\"\n    }\n  ],\n  \"reasoningRisks\": [\n    {\n      \"biasType\": \"post-hoc-fallacy\",\n      \"title\": \"Mistaking Correlation for Causation\",\n      \"description\": \"Assuming that the recent deployment directly caused the connection issues due to timing.\",\n      \"detectedIn\": \"Hypotheses regarding deployment leading to connection handling changes.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-01\", \"sample-db-connection-leak-ev-02\"],\n      \"riskLevel\": \"medium\",\n      \"mitigation\": \"Focus on establishing a clear causative link through testing or analysis.\"\n    }\n  ],\n  \"recommendedActions\": [\n    {\n      \"title\": \"Simulate Traffic Load\",\n      \"description\": \"Implement a controlled test that simulates the request volume from the marketing campaign to analyze connection-pool behavior.\",\n      \"priority\": \"high\",\n      \"category\": \"reproduce\",\n      \"relatedHypothesisIds\": [\"H1\"],\n      \"evidenceIds\": [],\n      \"expectedOutcome\": \"Observe whether similar exhaustion patterns occur under simulated loads.\",\n      \"risk\": \"Potential to overload the system if not managed carefully.\"\n    },\n    {\n      \"title\": \"Code Review of Session Management\",\n      \"description\": \"Conduct a thorough review of the changes related to database session handling introduced in the recent deployment.\",\n      \"priority\": \"high\",\n      \"category\": \"code-review\",\n      \"relatedHypothesisIds\": [\"H2\"],\n      \"evidenceIds\": [],\n      \"expectedOutcome\": \"Identify any changes that may lead to connections not being released properly.\",\n      \"risk\": \"Time-consuming, could delay resolution.\"\n    },\n    {\n      \"title\": \"Review Database Load During Incident\",\n      \"description\": \"Analyze database logs and metrics during the incident to ascertain potential external factors affecting connections.\",\n      \"priority\": \"medium\",\n      \"category\": \"collect-evidence\",\n      \"relatedHypothesisIds\": [\"H3\"],\n      \"evidenceIds\": [],\n      \"expectedOutcome\": \"Determine if autovacuum or other processes impacted connection availability.\",\n      \"risk\": \"Identifying external causes may not lead to immediate solutions.\"\n    }\n  ],\n  \"openQuestions\": [\n    \"What were the exact connection hold times for requests during the incident?\",\n    \"Is there any historical context for the connection-utilization spikes recorded previously?\"\n  ],\n  \"unsupportedClaims\": [],\n  \"uncertaintyStatement\": \"The conclusions drawn are based on available data and informed reasoning, but further investigation is necessary to validate these hypotheses.\"\n}",
+    "repaired": false
+  }
+}

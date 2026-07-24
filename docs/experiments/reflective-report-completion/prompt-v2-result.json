@@ -1,0 +1,9 @@
+{
+  "_reference": true,
+  "_note": "The v2 comparison leg reuses the already-saved real OpenAI v2 verification result rather than making a duplicate real call, per this experiment's instructions.",
+  "_actualFile": "docs/experiments/real-openai-v2-verification/analysis-result.json",
+  "promptVersion": "incident-analysis-v2",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "date": "2026-07-24"
+}
