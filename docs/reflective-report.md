@@ -228,7 +228,7 @@ Section 19; full per-bias detail, including a worked example for each of six sch
 | Bias / Fallacy | Where It Appeared | Effect on Our Thinking | How We Noticed It | How We Reduced Its Effect |
 | --- | --- | --- | --- | --- |
 | **Confirmation bias** | The deploy at 09:35 UTC correlates neatly with errors starting at 09:40 -- an easy story to settle on and stop questioning. | Risk of collecting evidence *for* the deploy explanation while never actively hunting for evidence against it. | A real OpenAI `v2` raw response left every hypothesis's `contradictingEvidenceIds` empty -- confirmation bias made concrete: support gathered, contradictions never sought. | Facts vs. Assumptions keeps the causal claim an Assumption, never a Fact; completion repair explicitly re-asks for contradicting evidence; Skeptic Review's `confirmationBiasAssessment` targets this directly. |
-| **Post-hoc fallacy** | Deploy at 09:35, errors at 09:40 -- five minutes apart, a classic "this, therefore because of this" trap. | Timing proximity alone can feel like causal proof, crowding out an equally valid alternative (the traffic increase). | All three real analysis calls (`v1`, `v2`, sensitivity variant) independently flagged this bias unprompted, citing the exact deploy/error evidence ids -- a real, evidence-grounded finding, not written for this report. | `v2`'s prompt explicitly forbids treating deployment timing alone as causation; the mock provider flags it whenever deployment evidence is present. |
+| **Post-hoc fallacy** | Deploy at 09:35, errors at 09:40 -- five minutes apart, a classic "this, therefore because of this" trap. | Timing proximity alone can feel like causal proof, crowding out an equally valid alternative (the traffic increase); the causal claim is kept as an Assumption, never a Fact, specifically to guard against this. | The post-hoc risk was identified through the scenario design, the evaluation fixture, and the investigation review process. However, it was not consistently named by every real OpenAI response: `v1` and the sensitivity variant both flagged it explicitly (citing the deploy/error evidence ids), but the saved `v2` run's only reasoning-risk finding was `confirmation-bias`, not `post-hoc-fallacy` -- demonstrating that a relevant reasoning risk may still be missed even when the evidence clearly supports it. | `v2`'s prompt explicitly forbids treating deployment timing alone as causation and forbids presenting correlation as proven causation; the mock provider flags it whenever deployment evidence is present; the Skeptic Review and contradicting-evidence checks provide an independent second look regardless of whether the first pass named the bias. |
 | **Anchoring bias** | Evidence `ev-10` ("this alert has fired before, unrelated to any deploy") is easy to skim past once the deploy narrative already feels settled. | The first plausible story anchors the whole investigation; later evidence gets under-weighted rather than evaluated fresh. | A design risk identified directly, not one a real call happened to name for this scenario. | The mock heuristic flags evidence timestamped before the incident's recorded start; every citation is a clickable chip so no item is easy to silently skip. |
 | **Base-rate neglect** | The same alert had fired 3-4 times before over two months, always self-resolving -- easy to discount in favor of a specific, current-feeling cause. | A routine, previously self-resolving alert can get treated as a novel emergency needing a specific root cause. | Deliberately built into the scenario's evidence and evaluation fixture, to test whether an investigation accounts for it. | The mock provider flags base-rate neglect on sparse evidence; every scenario's evaluation fixture requires a base-rate/missing-information element to be present and checked by the test suite. |
 | **Automation bias** | Every screen presenting AI output, including the deterministic mock provider's. | Trusting a conclusion because a tool produced it, without the scrutiny a colleague's opinion would get. | This risk motivated `MockAIProvider`'s design choice to always disclose "this is mock output" as its own finding, before any real call was ever made. | Provider/model/prompt-version metadata on every result; the Facts/Assumptions/Unsupported-Claims split; the human-only `confirmed-by-human` status the AI can never set itself. |
@@ -264,16 +264,21 @@ of AI reasoning quality.
 ## 18. Incorrect, Incomplete, Misleading, or Overconfident AI Outputs
 
 The most significant documented weakness is the real-provider finding described in Sections 10, 14,
-and 16: empty contradicting-evidence lists and empty reasoning-risk arrays across every tested real
-run under `v1`, despite the prompt explicitly requiring both. This is not a hypothetical concern —
-it is a recorded, evidence-based finding from actual API calls (`provider: "openai"`,
-`fallbackUsed: false`), and it is exactly the kind of silent incompleteness that could mislead a user
-into believing an analysis was more thoroughly self-critical than it actually was, if the UI did not
-make an empty list visible as "none found" rather than hiding the section entirely. `recommendedActions`
-was also inconsistent across real runs — populated in two of three, empty in one. These findings
+and 16. In the three earlier real-provider `v1` runs (a prior development session, three different
+scenarios), the model returned empty reasoning-risk arrays and empty contradicting-evidence lists,
+despite the prompt explicitly requiring both. In the later controlled comparison (Section 10), the
+new `v1` run on `sample-db-connection-leak` returned one reasoning-risk finding, showing that the
+behavior was inconsistent rather than universal — a real model does not fail the same way every
+time, and this report does not claim otherwise. This is not a hypothetical concern — it is a
+recorded, evidence-based finding from actual API calls (`provider: "openai"`, `fallbackUsed: false`),
+and it is exactly the kind of silent incompleteness that could mislead a user into believing an
+analysis was more thoroughly self-critical than it actually was, if the UI did not make an empty list
+visible as "none found" rather than hiding the section entirely. `recommendedActions` was also
+inconsistent across the earlier real runs — populated in two of three, empty in one. These findings
 directly shaped this project's design: the completeness quality gate and the targeted completion-
 repair pass exist specifically because an AI response can be schema-valid and still meaningfully
-incomplete.
+incomplete, and because that incompleteness is not consistent enough to predict or rule out in
+advance.
 
 The real `v2` verification (Section 19) reproduced the same pattern in the model's *raw, first*
 response under `v2` — empty reasoning risks, empty contradicting evidence on all three hypotheses —
