@@ -14,6 +14,7 @@ import { NewIncidentFormSchema, type NewIncidentFormValues } from '../../schemas
 import { useCreateIncident } from '../../hooks/useCreateIncident';
 import { analyzeIncident } from '../../services/analysisService';
 import { buildFormValuesFromIncident } from '../../utils/incidentFormMapping';
+import { computeFileSubmissionError } from '../../utils/fileValidation';
 import { ControlledTextField } from '../common/ControlledTextField';
 import { FileUploadZone } from '../evidence/FileUploadZone';
 import { IncidentCreatedPanel } from './IncidentCreatedPanel';
@@ -73,6 +74,21 @@ export function NewIncidentForm(): ReactNode {
     resolver: zodResolver(NewIncidentFormSchema),
     defaultValues: DEFAULT_VALUES,
   });
+
+  /**
+   * When the backend rejects the submission specifically because of an
+   * uploaded file (an empty/whitespace-only file, malformed JSON/CSV, or an
+   * unsupported type/MIME the client didn't catch), that message is shown
+   * inside `FileUploadZone` instead of the generic error alert below --
+   * `computeFileSubmissionError` is the single switch that decides which
+   * one, so a file-selection error is never rendered in both places at
+   * once. Any other backend/form-submission error still falls through to
+   * the generic alert.
+   */
+  const fileSubmissionError = computeFileSubmissionError(
+    createIncidentMutation.isError,
+    createIncidentMutation.error,
+  );
 
   function handleResetForm(): void {
     reset(DEFAULT_VALUES);
@@ -256,12 +272,18 @@ export function NewIncidentForm(): ReactNode {
             <Typography variant="h6" component="h2">
               Upload files
             </Typography>
-            <FileUploadZone key={uploadZoneResetKey} files={files} onChange={setFiles} />
+            <FileUploadZone
+              key={uploadZoneResetKey}
+              files={files}
+              onChange={setFiles}
+              externalError={fileSubmissionError}
+              onDismissExternalError={() => createIncidentMutation.reset()}
+            />
           </Stack>
         </CardContent>
       </Card>
 
-      {createIncidentMutation.isError && (
+      {createIncidentMutation.isError && !fileSubmissionError && (
         <Alert severity="error" variant="outlined">
           {createIncidentMutation.error.message}
         </Alert>

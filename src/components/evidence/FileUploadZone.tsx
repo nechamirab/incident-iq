@@ -26,21 +26,43 @@ const PREVIEW_BYTE_LIMIT = 2000;
 
 interface FileUploadZoneProps {
   files: File[];
-  onChange: (files: File[]) => void;
+  /** Accepts a functional updater (like `Dispatch<SetStateAction<File[]>>`) so a selection that finishes validating after `files` has since changed (e.g. a file was removed while another was still being read) can never silently undo that change. */
+  onChange: (update: File[] | ((previous: File[]) => File[])) => void;
+  /**
+   * A file-related error surfaced by the parent from a failed backend
+   * submission (e.g. a whitespace-only CSV the client couldn't catch),
+   * rendered inside this component's own error area alongside any
+   * client-side rejection message -- so a file-selection error is never
+   * shown in two places at once. The parent owns clearing it (via
+   * {@link onDismissExternalError}); this component never mutates it
+   * directly.
+   */
+  externalError?: string | null;
+  /** Called whenever this component would clear its own rejection errors (new selection, removal, dismiss) -- lets the parent clear `externalError` in lockstep, so a stale backend error can never outlive the client-side error state it's displayed alongside. */
+  onDismissExternalError?: () => void;
 }
 
 /**
  * Drag-and-drop (and click-to-browse) evidence file upload area. Validates
- * each selected file client-side (extension and size) before adding it,
- * and lets the user preview the first portion of a file's text content or
- * remove it before submitting the form. Authoritative validation always
- * still happens on the backend.
+ * each selected file client-side (extension, MIME type, size, and -- for
+ * text/log/JSON files -- content) before adding it, and lets the user
+ * preview the first portion of a file's text content or remove it before
+ * submitting the form. Authoritative validation always still happens on
+ * the backend (in particular, CSV structural validation is not duplicated
+ * client-side -- see `fileValidation.ts`).
  */
-export function FileUploadZone({ files, onChange }: FileUploadZoneProps): ReactNode {
+export function FileUploadZone({
+  files,
+  onChange,
+  externalError = null,
+  onDismissExternalError,
+}: FileUploadZoneProps): ReactNode {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [rejectionErrors, setRejectionErrors] = useState<string[]>([]);
   const [expandedFileName, setExpandedFileName] = useState<string | null>(null);
   const [previewsByName, setPreviewsByName] = useState<Record<string, string>>({});
+
+  const displayedErrors = externalError ? [externalError, ...rejectionErrors] : rejectionErrors;
 
   /**
    * Validates one newly selected/dropped batch via the shared
@@ -48,20 +70,24 @@ export function FileUploadZone({ files, onChange }: FileUploadZoneProps): ReactN
    * state wholesale with this batch's result (never merged with a
    * previous call's errors) -- this is what guarantees a stale message
    * about an earlier, now-irrelevant selection attempt never survives a
-   * new one, whether it arrived via the file picker or a drop.
+   * new one, whether it arrived via the file picker or a drop. Any
+   * invalid candidate is simply never included in `accepted`, so it can
+   * never reach the selected-files list, even transiently.
    */
-  function addFiles(candidates: File[]): void {
-    const { accepted, errors } = resolveFileSelection(files.length, candidates);
+  async function addFiles(candidates: File[]): Promise<void> {
+    onDismissExternalError?.();
+
+    const { accepted, errors } = await resolveFileSelection(files.length, candidates);
 
     setRejectionErrors(errors);
     if (accepted.length > 0) {
-      onChange([...files, ...accepted]);
+      onChange((previous) => [...previous, ...accepted]);
     }
   }
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement>): void {
     if (event.target.files) {
-      addFiles(Array.from(event.target.files));
+      void addFiles(Array.from(event.target.files));
     }
     event.target.value = '';
   }
@@ -69,7 +95,7 @@ export function FileUploadZone({ files, onChange }: FileUploadZoneProps): ReactN
   function handleDrop(event: DragEvent<HTMLDivElement>): void {
     event.preventDefault();
     setIsDraggingOver(false);
-    addFiles(Array.from(event.dataTransfer.files));
+    void addFiles(Array.from(event.dataTransfer.files));
   }
 
   /**
@@ -77,17 +103,25 @@ export function FileUploadZone({ files, onChange }: FileUploadZoneProps): ReactN
    * message from a previous selection attempt -- rejection errors are
    * never tied to a specific item still in `files` (an invalid file is
    * never added to the list in the first place), so any removal clears
-   * them, rather than leaving a stale message with nothing left to
+   * both the local rejection errors and any external (backend) file
+   * error, rather than leaving a stale message with nothing left to
    * associate it with.
    */
   function handleRemove(target: File): void {
-    onChange(files.filter((file) => file !== target));
+    onChange((previous) => previous.filter((file) => file !== target));
     setRejectionErrors([]);
+    onDismissExternalError?.();
     setPreviewsByName((current) => {
       const next = { ...current };
       delete next[target.name];
       return next;
     });
+  }
+
+  /** Dismissing the alert clears every error it's currently showing, local and external alike -- never leaves a second, orphaned error behind. */
+  function handleDismissErrors(): void {
+    setRejectionErrors([]);
+    onDismissExternalError?.();
   }
 
   async function togglePreview(file: File): Promise<void> {
@@ -144,10 +178,10 @@ export function FileUploadZone({ files, onChange }: FileUploadZoneProps): ReactN
         </Stack>
       </Paper>
 
-      {rejectionErrors.length > 0 && (
-        <Alert severity="warning" variant="outlined" onClose={() => setRejectionErrors([])}>
+      {displayedErrors.length > 0 && (
+        <Alert severity="warning" variant="outlined" onClose={handleDismissErrors}>
           <Stack spacing={0.5}>
-            {rejectionErrors.map((error) => (
+            {displayedErrors.map((error) => (
               <Typography key={error} variant="body2">
                 {error}
               </Typography>
