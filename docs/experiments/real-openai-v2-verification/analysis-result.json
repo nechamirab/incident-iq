@@ -1,0 +1,260 @@
+{
+  "id": "run-05c1c4b2-4890-446f-93c2-ab257602c13f",
+  "incidentId": "sample-db-connection-leak",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "promptVersion": "incident-analysis-v2",
+  "createdAt": "2026-07-24T08:12:05.666Z",
+  "inputHash": "22e17216f7716388a6f629605885ed86f5d0693f0d89b3924d296f4e28c0f4d7",
+  "durationMs": 42009,
+  "configuredProvider": "openai",
+  "fallbackUsed": false,
+  "fallbackReason": null,
+  "providerRequestId": "resp_04c1e704b797a48c006a631e411760819190287b955b003b5e",
+  "completionRepairAttempted": true,
+  "completionRepairedSections": [
+    "reasoningRisks",
+    "hypotheses"
+  ],
+  "qualityWarnings": [],
+  "status": "completed",
+  "summary": {
+    "text": "The orders-service has been experiencing intermittent 500 errors due to database connection-pool exhaustion. The issue began shortly after a deploy and coincided with a traffic increase from a marketing campaign.",
+    "affectedComponents": [
+      "orders-service",
+      "orders-db"
+    ],
+    "impact": "High impact on order processing and user experience."
+  },
+  "timeline": [
+    {
+      "id": "timeline-e7784aaa-6640-44fc-9464-449d4c28588e",
+      "timestamp": "2026-07-15T09:30:00Z",
+      "title": "Traffic Increase",
+      "description": "Request volume for orders-service increased by 35%, coinciding with a promotional email campaign.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-04"
+      ],
+      "timestampType": "exact",
+      "confidence": 85,
+      "isInferred": false
+    },
+    {
+      "id": "timeline-0e4057ca-49f9-4e1a-8dfd-7e02e66876e9",
+      "timestamp": "2026-07-15T09:35:00Z",
+      "title": "Deploy v5.2.0",
+      "description": "Deploy of orders-service version 5.2.0 occurred, introducing changes to the repository layer and new ORM session manager.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-02"
+      ],
+      "timestampType": "exact",
+      "confidence": 90,
+      "isInferred": false
+    },
+    {
+      "id": "timeline-bd5528e5-e854-4358-b148-fadb5bd31c3a",
+      "timestamp": "2026-07-15T09:40:00Z",
+      "title": "Error Reports Start",
+      "description": "Intermittent 500 errors began to be reported due to database connection-pool exhaustion.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-01"
+      ],
+      "timestampType": "exact",
+      "confidence": 95,
+      "isInferred": false
+    },
+    {
+      "id": "timeline-a63dab7a-fdb6-4928-a497-df347d193d2d",
+      "timestamp": "2026-07-15T10:05:00Z",
+      "title": "Connection Pool Utilization Reaches 100%",
+      "description": "Connection-pool utilization reached 100%, leading to further service failures.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-03"
+      ],
+      "timestampType": "exact",
+      "confidence": 90,
+      "isInferred": false
+    }
+  ],
+  "facts": [
+    {
+      "id": "reasoning-6aacaf53-c20e-49ea-bf84-b785ebf24fac",
+      "category": "fact",
+      "statement": "Orders-service has returned 500 errors due to database connection-pool exhaustion since 09:40 UTC.",
+      "explanation": "This is evidenced by logs and error reports.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-01"
+      ],
+      "confidence": 95,
+      "reviewStatus": "unreviewed"
+    },
+    {
+      "id": "reasoning-e4120575-6de0-46d6-852b-88a792612a05",
+      "category": "fact",
+      "statement": "A deploy occurred at 09:35 UTC.",
+      "explanation": "The deploy note indicates changes to the repository layer and database session management.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-02"
+      ],
+      "confidence": 90,
+      "reviewStatus": "unreviewed"
+    },
+    {
+      "id": "reasoning-2cc4db98-7274-456e-8797-c4ea7f7043e7",
+      "category": "fact",
+      "statement": "Connection-pool utilization climbed from 42% to 100% between 09:40 UTC and 10:05 UTC.",
+      "explanation": "Monitoring alerts document this gradual increase in usage.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-03"
+      ],
+      "confidence": 90,
+      "reviewStatus": "unreviewed"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "reasoning-e5f7a25f-f08f-4ba2-bdea-8d395288d0ae",
+      "category": "assumption",
+      "statement": "The deploy caused the connection-pool exhaustion.",
+      "explanation": "The incident's timing coincides closely with the deploy's occurrence.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-01",
+        "sample-db-connection-leak-ev-02"
+      ],
+      "confidence": 70,
+      "reviewStatus": "unreviewed"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "hypothesis-72cd6089-f808-4ef0-9669-d6222a6fbecf",
+      "title": "New ORM session manager is causing connection leaks.",
+      "description": "The newly implemented ORM session manager could be leaking database sessions, leading to exhaustion of the connection pool.",
+      "confidence": 65,
+      "confidenceReason": "The drop in session closed log frequency and the deploy's timing suggest a possible link, but there is no direct evidence of connection leaks from the new implementation.",
+      "supportingEvidenceIds": [
+        "sample-db-connection-leak-ev-07"
+      ],
+      "contradictingEvidenceIds": [],
+      "assumptions": [
+        "Assuming the new ORM is leaking connections."
+      ],
+      "recommendedTest": "Monitor for session-hold-times in orders-service post-deploy.",
+      "expectedResult": "Identify whether sessions are held longer than the previous baseline.",
+      "status": "proposed"
+    },
+    {
+      "id": "hypothesis-81704c5a-d095-49c9-98b7-97e65da77eda",
+      "title": "Increased traffic from the marketing campaign led to connection pool exhaustion.",
+      "description": "The spike in request volume could have saturated the existing connection pool capacity, causing exhaustion.",
+      "confidence": 75,
+      "confidenceReason": "The increase in request volume coinciding with the deployment creates a correlation, but further evidence is needed to establish causation.",
+      "supportingEvidenceIds": [
+        "sample-db-connection-leak-ev-04"
+      ],
+      "contradictingEvidenceIds": [
+        "sample-db-connection-leak-ev-10"
+      ],
+      "assumptions": [
+        "Assuming the connection pool max size of 30 per pod is adequate for increased load."
+      ],
+      "recommendedTest": "Analyze request volume to connection-pool utilization ratio.",
+      "expectedResult": "Determine if traffic volume correlated strongly with pool exhaustion.",
+      "status": "proposed"
+    },
+    {
+      "id": "hypothesis-ffa73e4f-6a81-4440-bec1-68ab0f6ba1b2",
+      "title": "The deploy introduced inefficiencies in database session management.",
+      "description": "Refactoring the repository layer may have inadvertently introduced inefficiencies that prevent proper session cleanup.",
+      "confidence": 60,
+      "confidenceReason": "The deploy changed session management, but the exact impacts on connection handling are not clear.",
+      "supportingEvidenceIds": [
+        "sample-db-connection-leak-ev-02"
+      ],
+      "contradictingEvidenceIds": [
+        "sample-db-connection-leak-ev-08"
+      ],
+      "assumptions": [
+        "Assuming changes to session management were significant enough to impact connection handling."
+      ],
+      "recommendedTest": "Review the implementation details of the ORM session management.",
+      "expectedResult": "Identify potential inefficiencies that could lead to connection pooling issues.",
+      "status": "proposed"
+    }
+  ],
+  "reasoningRisks": [
+    {
+      "id": "bias-703738f6-08a8-40df-9685-9aa7dcb84cf7",
+      "biasType": "confirmation-bias",
+      "title": "Favoring deploy's role in connection pool issues.",
+      "description": "Investigators may focus on evidence linking the deploy to the errors, overlooking historical context.",
+      "detectedIn": "Assumption that the deploy caused the connection exhaustion.",
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-01",
+        "sample-db-connection-leak-ev-02"
+      ],
+      "riskLevel": "medium",
+      "mitigation": "Evaluate historical data regarding connection pool alerts without a deploy."
+    }
+  ],
+  "recommendedActions": [
+    {
+      "id": "action-62d12e33-a190-4b7a-86ba-05dc9a34690f",
+      "title": "Analyze session hold times post-deploy.",
+      "description": "Investigate per-request connection-hold-time metrics for orders-service to confirm if connections are being held longer than before.",
+      "priority": "high",
+      "category": "collect-evidence",
+      "relatedHypothesisIds": [
+        "hypothesis-72cd6089-f808-4ef0-9669-d6222a6fbecf"
+      ],
+      "evidenceIds": [],
+      "expectedOutcome": "Determine whether connection leaks are occurring or if session management is leading to exhaustion.",
+      "risk": "This could miss underlying issues if metrics are not implemented correctly.",
+      "status": "suggested"
+    },
+    {
+      "id": "action-01c78b36-330f-46b1-9573-b67952f1562b",
+      "title": "Assess connection pool sizing against traffic patterns.",
+      "description": "Compare historical connection pool utilization against current traffic trends to determine if the pool size is sufficient.",
+      "priority": "medium",
+      "category": "compare",
+      "relatedHypothesisIds": [
+        "hypothesis-81704c5a-d095-49c9-98b7-97e65da77eda"
+      ],
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-03"
+      ],
+      "expectedOutcome": "Establish whether the current pool size is adequately aligned with increased load.",
+      "risk": "Changes in traffic patterns can vary, complicating the analysis.",
+      "status": "suggested"
+    },
+    {
+      "id": "action-1114670f-a57c-4e54-8cd9-8e7bb290fea5",
+      "title": "Code review of the repository layer changes.",
+      "description": "Conduct a detailed review of the refactored repository layer changes to identify any inefficiencies in database session management.",
+      "priority": "medium",
+      "category": "code-review",
+      "relatedHypothesisIds": [
+        "hypothesis-ffa73e4f-6a81-4440-bec1-68ab0f6ba1b2"
+      ],
+      "evidenceIds": [
+        "sample-db-connection-leak-ev-02"
+      ],
+      "expectedOutcome": "Identify any potential coding issues leading to connection pooling problems.",
+      "risk": "Bias may occur toward defending recent code changes rather than objectively assessing them.",
+      "status": "suggested"
+    }
+  ],
+  "openQuestions": [
+    "What are the metrics for per-request connection hold times prior to the deploy?",
+    "What was the exact traffic volume prior to the marketing campaign?",
+    "Can historical connection utilization data provide more context for recurring alerts of connection pool exhaustion?"
+  ],
+  "unsupportedClaims": [],
+  "uncertaintyStatement": "The available evidence suggests a link between the deploy and connection pool issues, but the specific cause remains unverified.",
+  "validationWarnings": [],
+  "rawResponse": {
+    "rawText": "{\n  \"summary\": {\n    \"text\": \"The orders-service has been experiencing intermittent 500 errors due to database connection-pool exhaustion. The issue began shortly after a deploy and coincided with a traffic increase from a marketing campaign.\",\n    \"affectedComponents\": [\"orders-service\", \"orders-db\"],\n    \"impact\": \"High impact on order processing and user experience.\"\n  },\n  \"timeline\": [\n    {\n      \"timestamp\": \"2026-07-15T09:30:00Z\",\n      \"title\": \"Traffic Increase\",\n      \"description\": \"Request volume for orders-service increased by 35%, coinciding with a promotional email campaign.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-04\"],\n      \"timestampType\": \"exact\",\n      \"confidence\": 85,\n      \"isInferred\": false\n    },\n    {\n      \"timestamp\": \"2026-07-15T09:35:00Z\",\n      \"title\": \"Deploy v5.2.0\",\n      \"description\": \"Deploy of orders-service version 5.2.0 occurred, introducing changes to the repository layer and new ORM session manager.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-02\"],\n      \"timestampType\": \"exact\",\n      \"confidence\": 90,\n      \"isInferred\": false\n    },\n    {\n      \"timestamp\": \"2026-07-15T09:40:00Z\",\n      \"title\": \"Error Reports Start\",\n      \"description\": \"Intermittent 500 errors began to be reported due to database connection-pool exhaustion.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-01\"],\n      \"timestampType\": \"exact\",\n      \"confidence\": 95,\n      \"isInferred\": false\n    },\n    {\n      \"timestamp\": \"2026-07-15T10:05:00Z\",\n      \"title\": \"Connection Pool Utilization Reaches 100%\",\n      \"description\": \"Connection-pool utilization reached 100%, leading to further service failures.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-03\"],\n      \"timestampType\": \"exact\",\n      \"confidence\": 90,\n      \"isInferred\": false\n    }\n  ],\n  \"facts\": [\n    {\n      \"statement\": \"Orders-service has returned 500 errors due to database connection-pool exhaustion since 09:40 UTC.\",\n      \"explanation\": \"This is evidenced by logs and error reports.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-01\"],\n      \"confidence\": 95\n    },\n    {\n      \"statement\": \"A deploy occurred at 09:35 UTC.\",\n      \"explanation\": \"The deploy note indicates changes to the repository layer and database session management.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-02\"],\n      \"confidence\": 90\n    },\n    {\n      \"statement\": \"Connection-pool utilization climbed from 42% to 100% between 09:40 UTC and 10:05 UTC.\",\n      \"explanation\": \"Monitoring alerts document this gradual increase in usage.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-03\"],\n      \"confidence\": 90\n    }\n  ],\n  \"assumptions\": [\n    {\n      \"statement\": \"The deploy caused the connection-pool exhaustion.\",\n      \"explanation\": \"The incident's timing coincides closely with the deploy's occurrence.\",\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-01\", \"sample-db-connection-leak-ev-02\"],\n      \"confidence\": 70\n    }\n  ],\n  \"hypotheses\": [\n    {\n      \"tempId\": \"H1\",\n      \"title\": \"New ORM session manager is causing connection leaks.\",\n      \"description\": \"The newly implemented ORM session manager could be leaking database sessions, leading to exhaustion of the connection pool.\",\n      \"confidence\": 65,\n      \"confidenceReason\": \"The drop in session closed log frequency and the deploy's timing suggest a possible link, but there is no direct evidence of connection leaks from the new implementation.\",\n      \"supportingEvidenceIds\": [\"sample-db-connection-leak-ev-07\"],\n      \"contradictingEvidenceIds\": [],\n      \"assumptions\": [\"Assuming the new ORM is leaking connections.\"],\n      \"recommendedTest\": \"Monitor for session-hold-times in orders-service post-deploy.\",\n      \"expectedResult\": \"Identify whether sessions are held longer than the previous baseline.\"\n    },\n    {\n      \"tempId\": \"H2\",\n      \"title\": \"Increased traffic from the marketing campaign led to connection pool exhaustion.\",\n      \"description\": \"The spike in request volume could have saturated the existing connection pool capacity, causing exhaustion.\",\n      \"confidence\": 75,\n      \"confidenceReason\": \"The increase in request volume coinciding with the deployment creates a correlation, but further evidence is needed to establish causation.\",\n      \"supportingEvidenceIds\": [\"sample-db-connection-leak-ev-04\"],\n      \"contradictingEvidenceIds\": [],\n      \"assumptions\": [\"Assuming the connection pool max size of 30 per pod is adequate for increased load.\"],\n      \"recommendedTest\": \"Analyze request volume to connection-pool utilization ratio.\",\n      \"expectedResult\": \"Determine if traffic volume correlated strongly with pool exhaustion.\"\n    },\n    {\n      \"tempId\": \"H3\",\n      \"title\": \"The deploy introduced inefficiencies in database session management.\",\n      \"description\": \"Refactoring the repository layer may have inadvertently introduced inefficiencies that prevent proper session cleanup.\",\n      \"confidence\": 60,\n      \"confidenceReason\": \"The deploy changed session management, but the exact impacts on connection handling are not clear.\",\n      \"supportingEvidenceIds\": [\"sample-db-connection-leak-ev-02\"],\n      \"contradictingEvidenceIds\": [],\n      \"assumptions\": [\"Assuming changes to session management were significant enough to impact connection handling.\"],\n      \"recommendedTest\": \"Review the implementation details of the ORM session management.\",\n      \"expectedResult\": \"Identify potential inefficiencies that could lead to connection pooling issues.\"\n    }\n  ],\n  \"reasoningRisks\": [],\n  \"recommendedActions\": [\n    {\n      \"title\": \"Analyze session hold times post-deploy.\",\n      \"description\": \"Investigate per-request connection-hold-time metrics for orders-service to confirm if connections are being held longer than before.\",\n      \"priority\": \"high\",\n      \"category\": \"collect-evidence\",\n      \"relatedHypothesisIds\": [\"H1\"],\n      \"evidenceIds\": [],\n      \"expectedOutcome\": \"Determine whether connection leaks are occurring or if session management is leading to exhaustion.\",\n      \"risk\": \"This could miss underlying issues if metrics are not implemented correctly.\"\n    },\n    {\n      \"title\": \"Assess connection pool sizing against traffic patterns.\",\n      \"description\": \"Compare historical connection pool utilization against current traffic trends to determine if the pool size is sufficient.\",\n      \"priority\": \"medium\",\n      \"category\": \"compare\",\n      \"relatedHypothesisIds\": [\"H2\"],\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-03\"],\n      \"expectedOutcome\": \"Establish whether the current pool size is adequately aligned with increased load.\",\n      \"risk\": \"Changes in traffic patterns can vary, complicating the analysis.\"\n    },\n    {\n      \"title\": \"Code review of the repository layer changes.\",\n      \"description\": \"Conduct a detailed review of the refactored repository layer changes to identify any inefficiencies in database session management.\",\n      \"priority\": \"medium\",\n      \"category\": \"code-review\",\n      \"relatedHypothesisIds\": [\"H3\"],\n      \"evidenceIds\": [\"sample-db-connection-leak-ev-02\"],\n      \"expectedOutcome\": \"Identify any potential coding issues leading to connection pooling problems.\",\n      \"risk\": \"Bias may occur toward defending recent code changes rather than objectively assessing them.\"\n    }\n  ],\n  \"openQuestions\": [\n    \"What are the metrics for per-request connection hold times prior to the deploy?\",\n    \"What was the exact traffic volume prior to the marketing campaign?\",\n    \"Can historical connection utilization data provide more context for recurring alerts of connection pool exhaustion?\"\n  ],\n  \"unsupportedClaims\": [],\n  \"uncertaintyStatement\": \"The available evidence suggests a link between the deploy and connection pool issues, but the specific cause remains unverified.\"\n}",
+    "repaired": false
+  }
+}

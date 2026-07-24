@@ -333,6 +333,19 @@ saved to `docs/experiments/<experiment>/latest.{json,md}`, overwriting the previ
 `docs/experiments/README.md` for the full contract, including why two of the four experiments are
 only meaningful with a real provider (`MockAIProvider` ignores prompt text by design).
 
+**Real OpenAI verification of `v2` (already performed once).** Separately from the CLI framework
+above, a limited real OpenAI verification was run directly against the production analysis/skeptic-
+review code path, using only the synthetic bundled `sample-db-connection-leak` scenario --
+`incident-analysis-v2` and the targeted completion-repair flow were both exercised, with
+`ALLOW_MOCK_FALLBACK=false` and no fallback used on any of the 3 real calls made. Results are saved,
+unedited, in `docs/experiments/real-openai-v2-verification/`. The outcome showed measurable
+improvement over the prior `v1` finding (reasoning risks and contradicting evidence went from
+entirely empty to partially populated after the repair pass) but incomplete coverage (contradicting
+evidence on 2 of 3 hypotheses, not 3 of 3; 1 of several plausible reasoning-risk types) -- see that
+directory's `evaluation.md` for the full breakdown, and `docs/requirements-compliance-closure.md`
+(M32/M38/M39) for how this affects those findings' status. **Regular automated tests (`npm test`)
+never make a real API call**, whether or not this verification has been run.
+
 ### Dashboard and navigation
 
 `/` (`DashboardPage`) lists every incident -- bundled samples plus any the user created -- most

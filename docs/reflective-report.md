@@ -126,10 +126,17 @@ instructs the model to actively search for contradicting evidence as a separate,
 each hypothesis, to state explicitly when none is found after looking, and to ground reasoning risks
 in the specific incident's own evidence rather than returning nothing. `v1` was deliberately preserved
 unchanged (not deleted or edited in place) specifically so a prompt-comparison experiment can compare
-the two directly. Whether `v2` actually improves on `v1` against a real provider has **not yet been
-re-verified** during this compliance-closure pass — this is stated honestly in Section 19 below and
-in `docs/experiments/README.md`, rather than assumed from the fact that `v2`'s instructions look
-stronger on paper.
+the two directly.
+
+A subsequent, limited real-provider verification (`docs/experiments/real-openai-v2-verification/`,
+detailed in Section 19) confirmed `v2` in isolation — not a head-to-head `v1`-vs-`v2` comparison —
+against one real OpenAI call on one scenario: the model's first response still reproduced the exact
+`v1` regression (empty reasoning risks, empty contradicting evidence on every hypothesis), and the
+targeted completion-repair pass then measurably improved both, though not completely. Whether `v2`
+is actually *better than `v1`* in a controlled, real-provider, head-to-head comparison remains
+unverified — `docs/experiments/prompt-comparison/latest.json` still honestly records that specific
+comparison as `"not-run"`, since the verification performed was of `v2` alone, not a paired
+comparison against `v1`.
 
 ## 11. Evidence Validation and Unsupported Claims
 
@@ -171,7 +178,12 @@ contradicting-evidence list is shown as an explicit, honest "none found" rather 
 absent. As documented in Sections 10 and 19, real-provider testing found this list came back empty
 for every hypothesis in every tested run under `v1` — a genuine limitation this project chose to
 document rather than hide, and the direct motivation for `v2`'s stronger instruction to actively
-search for contradicting evidence.
+search for contradicting evidence. The real `v2` verification run (Section 19) found this **improved
+but not resolved**: 2 of 3 hypotheses gained real, fixture-relevant contradicting evidence after the
+completion-repair pass — including the leading hypothesis, which cited exactly the evidence item the
+evaluation fixture identifies as its correct challenge — while the third hypothesis remained
+uncontested despite relevant evidence being available to the model. This is reported as a genuine,
+partial improvement, not a resolved regression.
 
 ## 15. Skeptic Review
 
@@ -200,8 +212,14 @@ honest, always-present disclosure that mock output is a placeholder), the post-h
 dominating), and base-rate neglect (very little total evidence). Two — overconfidence bias and
 hindsight bias — have no corresponding mock heuristic and are documented as an honest gap rather than
 silently omitted. Real-provider testing under `v1` returned zero reasoning-risk findings across all
-three tested scenarios, a fact stated plainly rather than glossed over. Full detail, including a
-concrete sample-scenario example for each of the six, is in `docs/bias-and-fallacy-analysis.md`.
+three tested scenarios, a fact stated plainly rather than glossed over. A real `v2` verification run
+(Section 19) reproduced the same empty result on the model's first response, then, after the
+targeted completion-repair pass, produced exactly one relevant, evidence-grounded finding
+(confirmation bias, tied to the deploy-timing assumption, with a concrete mitigation) — a genuine
+improvement from zero, but only one of up to four biases the evaluation fixture identifies as
+plausible for that scenario, and from a single real call, not a statistically representative sample.
+Full detail, including a concrete sample-scenario example for each of the six, is in
+`docs/bias-and-fallacy-analysis.md`.
 
 ## 17. Useful AI Outputs
 
@@ -227,6 +245,15 @@ directly shaped this project's design: the completeness quality gate and the tar
 repair pass exist specifically because an AI response can be schema-valid and still meaningfully
 incomplete.
 
+The real `v2` verification (Section 19) reproduced the same pattern in the model's *raw, first*
+response under `v2` — empty reasoning risks, empty contradicting evidence on all three hypotheses —
+confirming the underlying model behavior the prompt is fighting against has not disappeared just
+because the prompt asks more explicitly. The quality gate and completion-repair pass then measurably
+improved the *final* result (one reasoning risk, contradicting evidence on 2 of 3 hypotheses), but
+one hypothesis still ended with no contradicting evidence despite relevant evidence being available.
+This is reported honestly as a partial, not complete, improvement, based on a single real call on a
+single scenario.
+
 ## 19. Critical AI Experiments
 
 A repeatable, safe experiment framework (`npm run ai:experiment`, `server/src/experiments/`) supports
@@ -247,6 +274,41 @@ meaningful without a real provider, since the mock skeptic review is a genuine f
 being reviewed), both completed and produced real, saved results. This honesty distinction — mock
 pipeline validity is not the same claim as a real comparison — is treated as a hard rule throughout
 this project, not a minor caveat.
+
+### Real OpenAI verification of `v2` (`docs/experiments/real-openai-v2-verification/`)
+
+Separately from the `ai:experiment` CLI framework above, a limited, one-time real-provider
+verification was run directly against the production `analysisService`/`skepticReviewService` code
+path (not a simplified experiment harness), against the single bundled `sample-db-connection-leak`
+scenario, using a real OpenAI key with `AI_PROVIDER=openai`, `ALLOW_MOCK_FALLBACK=false`. It made
+three real, billable calls: one initial incident-analysis call (`incident-analysis-v2`), one targeted
+completion-repair call (triggered automatically by the quality gate, not forced), and one
+skeptic-review call (`skeptic-review-v1`). No fallback occurred on any call
+(`fallbackUsed: false` on every saved result); `provider`/`configuredProvider` both read `"openai"`
+throughout.
+
+Results, compared against the scenario's evaluation fixture: all three Facts cited valid evidence
+ids and the causal deployment claim correctly remained an Assumption rather than being promoted to a
+Fact. Before repair, the model's raw response reproduced the exact `v1`-era regression — an empty
+`reasoningRisks` array and every hypothesis with an empty `contradictingEvidenceIds`. After the
+(automatically triggered, single) completion-repair pass: one relevant, evidence-grounded
+confirmation-bias finding was generated, two of three hypotheses gained real, fixture-relevant
+contradicting evidence (including the leading hypothesis), and three concrete, non-generic,
+evidence/hypothesis-linked recommended actions were present. No unknown or invented evidence ids
+appeared anywhere in either result, and the skeptic review correctly identified the leading
+hypothesis, challenged it substantively, proposed three alternative explanations, named confirmation
+bias, and stated a concrete falsification test.
+
+**Limitations, stated plainly:** contradicting evidence remained empty for one of the three
+hypotheses even after repair; only one of the evaluation fixture's several plausible reasoning-risk
+types was actually produced; and this verification used a single scenario and a single real call per
+flow — it is not a statistically representative sample, and a different real call could plausibly
+produce a different result, since LLM output is not deterministic. This verification demonstrates
+real, measurable improvement over the prior `v1` finding — it does not demonstrate that M32
+(contradicting evidence) or M38 (reasoning risks) are fully solved, and this report does not claim
+either is. Full saved evidence, including the raw pre-repair response for direct comparison, is in
+`docs/experiments/real-openai-v2-verification/` — see that directory's `evaluation.md` for the
+complete, criterion-by-criterion breakdown.
 
 ## 20. Problems Encountered and Solutions
 

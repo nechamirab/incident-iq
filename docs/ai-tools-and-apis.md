@@ -38,11 +38,17 @@ nothing is included speculatively.
   across all three tested scenarios returned an empty `contradictingEvidenceIds`, and
   `reasoningRisks` was empty in all three runs despite the prompt requiring it; `recommendedActions`
   was populated in two of the three runs. `incident-analysis-v2` (see `docs/prompts.md`) was written
-  specifically to target these gaps, but **no new real-OpenAI verification of `v2` has been run
-  during this compliance-closure pass** -- the mock-only results currently committed under
-  `docs/experiments/prompt-comparison/` honestly record the real-provider comparison leg as
-  `"not-run"`. Re-running `npm run ai:experiment -- --experiment=A --real --provider=openai --yes`
-  with `RUN_REAL_AI_EXPERIMENTS=true` and a valid key would produce that evidence.
+  specifically to target these gaps. A limited real-OpenAI verification of `v2` in isolation has
+  since been performed (`docs/experiments/real-openai-v2-verification/`, 2026-07-24, one scenario,
+  3 real calls, `fallbackUsed: false` throughout): the model's first response reproduced the same
+  empty-contradicting-evidence/empty-reasoning-risks pattern, and the targeted completion-repair pass
+  then measurably improved both (2 of 3 hypotheses gained contradicting evidence, 1 relevant
+  reasoning-risk finding appeared) without fully resolving either. The CLI framework's own head-to-head
+  `v1`-vs-`v2` comparison (Experiment A) has **not** been run with a real provider -- the mock-only
+  results currently committed under `docs/experiments/prompt-comparison/` still honestly record that
+  specific comparison leg as `"not-run"`. Re-running
+  `npm run ai:experiment -- --experiment=A --real --provider=openai --yes` with
+  `RUN_REAL_AI_EXPERIMENTS=true` and a valid key would produce that evidence.
 - **Limitations:** subject to OpenAI's own rate limits/quota/availability; `OpenAIProvider` does not
   use OpenAI's Structured Outputs feature, for reasons documented at length in its own file's doc
   comment (summarized in `docs/architecture.md`, Section 5) -- it sends the required shape as plain

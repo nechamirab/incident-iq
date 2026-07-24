@@ -89,12 +89,45 @@ human-readable summary with a comparison table.
 
 ## Status of the results currently committed in this directory
 
-The files currently committed here were produced by a **mock-only** run
-(`npm run ai:experiment`, no `--real` flag). Every real-provider leg is
-honestly recorded as `"not-run"` because no real-provider call has been
-made in this environment. Running with `--real --provider=openai
---yes` (with `RUN_REAL_AI_EXPERIMENTS=true` and a valid `OPENAI_API_KEY`
-configured) would overwrite these files with a genuine real-provider
-comparison; see `docs/requirements-compliance-audit.md` and
-`docs/requirements-compliance-closure.md` for the project's honest,
-current status on whether that has been done.
+The `prompt-comparison/`, `provider-comparison/`, `prompt-sensitivity/`, and `skeptic-review/`
+results currently committed here were produced by a **mock-only** run of the CLI framework above
+(`npm run ai:experiment`, no `--real` flag). Every real-provider leg in *those* four directories is
+still honestly recorded as `"not-run"` -- the CLI framework itself has not been re-run with `--real`
+since these files were written. Running it with `--real --provider=openai --yes` (with
+`RUN_REAL_AI_EXPERIMENTS=true` and a valid `OPENAI_API_KEY` configured) would overwrite them with a
+genuine real-provider comparison.
+
+## Real OpenAI verification of `v2` (`real-openai-v2-verification/`)
+
+Separately from the CLI framework above, a **real, one-time OpenAI verification** was performed
+directly against the production analysis/skeptic-review code path (not the CLI experiment harness)
+and its results are saved in `real-openai-v2-verification/` (not overwritten on each `ai:experiment`
+run -- a standalone, dated record).
+
+| | |
+| --- | --- |
+| Date | 2026-07-24 |
+| Scenario | `sample-db-connection-leak` (the only scenario used) |
+| Provider | OpenAI |
+| Model | `gpt-4o-mini` |
+| Prompt version | `incident-analysis-v2` (analysis), `skeptic-review-v1` (review) |
+| Real calls made | 3 (1 initial analysis + 1 targeted completion-repair + 1 skeptic review) |
+| Fallback used | No (`fallbackUsed: false` throughout) |
+| Facts / Assumptions separation | PASS |
+| Contradicting evidence | **PARTIAL** -- 2 of 3 hypotheses gained real, relevant contradicting evidence after repair; 1 remained empty |
+| Reasoning Risks | PASS, with limited coverage -- 1 relevant finding produced (of up to 4 the fixture suggests) |
+| Recommended Actions | PASS -- 3 concrete, non-generic, evidence/hypothesis-linked actions |
+| Skeptic Review | PASS -- correct leading hypothesis, substantive challenge, 3 alternatives, concrete falsification test |
+
+See `real-openai-v2-verification/README.md` and `real-openai-v2-verification/evaluation.md` for the
+full, criterion-by-criterion writeup, and `real-openai-v2-verification/analysis-result.json` /
+`skeptic-review-result.json` for the actual saved (unedited) output. This single real run
+demonstrates genuine improvement over the prior `v1` finding recorded in
+`docs/requirements-compliance-audit.md` -- it does **not** demonstrate that the underlying gap is
+fully closed (see `docs/requirements-compliance-closure.md`, items M32/M38/M39, both marked
+`IMPROVED` rather than `RESOLVED` specifically because of this), and it is one call on one scenario,
+not a statistically representative sample.
+
+Regular automated tests (`npm test`) never make a real API call, with or without this verification
+having been run -- `RUN_REAL_AI_EXPERIMENTS` and a real key are required and are never read by the
+test suite itself.

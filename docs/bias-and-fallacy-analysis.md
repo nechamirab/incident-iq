@@ -12,11 +12,15 @@ notes the remaining two honestly.
 tested scenarios, despite the prompt requiring at least three genuinely relevant ones. Every concrete
 example below is demonstrated through the deterministic **mock provider's** heuristics
 (`MockAIProvider.buildReasoningRisks`), which are grounded in the same real, per-incident evidence
-data that ships with the project -- not through real-provider output. This document never claims a
-real OpenAI or Anthropic call actually identified any of these biases in a saved run, because no such
-saved output exists. `incident-analysis-v2` was written specifically to target this gap (see
-`docs/prompts.md`), but no new real-provider verification of `v2` has been run during this
-compliance-closure pass -- see `docs/experiments/prompt-comparison/` for the honest current status.
+data that ships with the project -- not through real-provider output. `incident-analysis-v2` was
+written specifically to target this gap (see `docs/prompts.md`); a limited real-OpenAI verification
+of `v2` has since been performed (`docs/experiments/real-openai-v2-verification/`, one scenario, one
+real call chain), which reproduced the same empty result on the model's first response and then, via
+the targeted completion-repair pass, produced exactly one relevant, evidence-grounded finding
+(`confirmation-bias`) -- a genuine but partial improvement from zero, not a resolution, and not a
+statistically representative sample. See `docs/experiments/real-openai-v2-verification/evaluation.md`
+for the full result and `docs/requirements-compliance-closure.md` (item M38) for its effect on that
+finding's status.
 
 ## 1. Confirmation bias
 
@@ -36,8 +40,9 @@ compliance-closure pass -- see `docs/experiments/prompt-comparison/` for the hon
   this directly.
 - **Remaining limitation:** real-provider testing (`v1`) showed this instruction alone was
   insufficient -- every tested real run returned empty `contradictingEvidenceIds` with no explanation.
-  Whether `v2`'s stronger, explicit instruction actually improves this has not yet been verified with
-  a real provider call (see the honesty note above).
+  A real `v2` verification (see the honesty note above) found this improved but not resolved: after
+  the completion-repair pass, 2 of 3 hypotheses gained real contradicting evidence, but one still did
+  not, despite relevant evidence being available in the prompt.
 - **Concrete example:** the `sample-ecommerce-checkout` scenario's leading "pool-size-reduction"
   hypothesis (the v2.4.1 deploy reduced the DB connection pool from 50 to 20) is well-supported by
   three evidence items, but the evaluation fixture (`ecommerceCheckout.eval.ts`) explicitly marks
