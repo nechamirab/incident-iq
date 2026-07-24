@@ -1,7 +1,7 @@
 # Reflective Report
 
 **Project name:** IncidentIQ
-**Students:** Nechami Rabinovitz and Maayan Vaknin
+**Students:** Nechami Rabinovitz and Mayan Vaknin
 **Institution:** Jerusalem Multidisciplinary College
 **Program:** Computer Science
 **Work mode:** Pair project
@@ -185,12 +185,13 @@ dialog.
 
 Hypotheses render supporting and contradicting evidence as two visually distinct groups; an empty
 contradicting-evidence list is shown as an explicit, honest "none found" rather than being blank or
-absent. As documented in Sections 10 and 19, real-provider testing found this list came back empty
-for every hypothesis in every tested run under `v1` — a genuine limitation this project chose to
-document rather than hide, and the direct motivation for `v2`'s stronger instruction to actively
-search for contradicting evidence. The real `v2` verification run (Section 19) found this **improved
-but not resolved**: 2 of 3 hypotheses gained real, fixture-relevant contradicting evidence after the
-completion-repair pass — including the leading hypothesis, which cited exactly the evidence item the
+absent. As documented in Sections 10 and 19, the three earlier real-provider v1 analyses returned empty
+contradicting-evidence lists for every hypothesis. In the later controlled v1 comparison, the raw response
+reproduced the same issue, while the completion-repair pass added valid contradicting evidence to two of
+the three hypotheses. This limitation was documented rather than hidden and directly motivated v2's stronger
+instruction to actively search for contradicting evidence. The real `v2` verification run (Section 19) found
+this **improved but not resolved**: 2 of 3 hypotheses gained real, fixture-relevant contradicting evidence
+after the completion-repair pass — including the leading hypothesis, which cited exactly the evidence item the
 evaluation fixture identifies as its correct challenge — while the third hypothesis remained
 uncontested despite relevant evidence being available to the model. This is reported as a genuine,
 partial improvement, not a resolved regression.
@@ -235,8 +236,7 @@ Section 19; full per-bias detail, including a worked example for each of six sch
 | **Base-rate neglect** | The same alert had fired 3-4 times before over two months, always self-resolving -- easy to discount in favor of a specific, current-feeling cause. | A routine, previously self-resolving alert can get treated as a novel emergency needing a specific root cause. | Deliberately built into the scenario's evidence and evaluation fixture, to test whether an investigation accounts for it. | The mock provider flags base-rate neglect on sparse evidence; every scenario's evaluation fixture requires a base-rate/missing-information element to be present and checked by the test suite. |
 | **Automation bias** | Every screen presenting AI output, including the deterministic mock provider's. | Trusting a conclusion because a tool produced it, without the scrutiny a colleague's opinion would get. | This risk motivated `MockAIProvider`'s design choice to always disclose "this is mock output" as its own finding, before any real call was ever made. | Provider/model/prompt-version metadata on every result; the Facts/Assumptions/Unsupported-Claims split; the human-only `confirmed-by-human` status the AI can never set itself. |
 
-**Remaining limitations, stated honestly:** none of the three real OpenAI calls in this project
-explicitly named base-rate-neglect for this scenario despite the trap being present -- a real gap,
+**Remaining limitations, stated honestly:** none of the three controlled comparison outputs for this scenario explicitly named base-rate neglect, despite the trap being present -- a real gap,
 not glossed over. The completion-repair pass improved contradicting evidence for 2 of 3 hypotheses,
 never 3 of 3, in every real run tested. No mechanism can force a human reviewer to actually act on a
 flagged anchoring or automation-bias risk -- the tool surfaces these, but responsibility to act on
